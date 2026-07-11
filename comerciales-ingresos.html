@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <title>Ingresos por Comercial</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   :root{
     --navy:#0d2340;
@@ -215,13 +216,16 @@
 
   <div class="toolbar" id="toolbar" style="display:none">
     <input type="text" id="searchBox" placeholder="&#128269; Buscar comercial..." oninput="render()">
-    <select class="sort-select" id="sortSelect" onchange="render()">
-      <option value="growth-desc">Ordenar: Mayor crecimiento</option>
-      <option value="growth-asc">Ordenar: Menor crecimiento</option>
-      <option value="total-desc">Ordenar: Total desc.</option>
-      <option value="total-asc">Ordenar: Total asc.</option>
-      <option value="az">Ordenar: A-Z</option>
-    </select>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <select class="sort-select" id="sortSelect" onchange="render()">
+        <option value="growth-desc">Ordenar: Mayor crecimiento</option>
+        <option value="growth-asc">Ordenar: Menor crecimiento</option>
+        <option value="total-desc">Ordenar: Total desc.</option>
+        <option value="total-asc">Ordenar: Total asc.</option>
+        <option value="az">Ordenar: A-Z</option>
+      </select>
+      <button class="mf-btn" onclick="exportComercialesXLSX()">📥 Exportar Excel</button>
+    </div>
   </div>
 
   <div id="output">
@@ -684,7 +688,20 @@ function buildTableHTML(keys, agg, monthlyAgg, canalAgg, canalMonthlyAgg, sector
   const lastYearLabel = showComparable ? `${lastYear} (${monthsLabel})` : `${lastYear}`;
 
   let html = '<table><thead><tr><th>Comercial</th>';
+  // Nº real de columnas de datos (además de "Comercial"), para usarlo como colspan exacto
+  // en la fila de tabs Canales/Sectores. Usar colspan="100" rompía table-layout:fixed al
+  // desplegar: el navegador contaba esa fila como si tuviera 100 columnas reales y
+  // recalculaba el ancho de todas las demás, encogiéndolas y añadiendo una columna fantasma.
+  let totalDataCols = 0;
   YEARS.forEach((y, idx) => {
+    const isLast = idx === lastIdx;
+    if(isLast && showComparable) totalDataCols++;
+    totalDataCols++;
+    if(idx > 0) totalDataCols++;
+  });
+  const totalCols = totalDataCols + 1; // +1 por la columna "Comercial"
+  YEARS.forEach((y, idx) => {
+
     const isLast = idx === lastIdx;
     if(isLast && showComparable){
       html += `<th class="col-divider comparable">${prevYear} (${monthsLabel})</th>`;
@@ -736,7 +753,7 @@ function buildTableHTML(keys, agg, monthlyAgg, canalAgg, canalMonthlyAgg, sector
     // Tabs CANALES / SECTORES + sub-filas
     const tabsId = 'tabs-' + rowId;
     html += `<tr class="breakdown-row" data-group="${rowId}" data-type="tabs">
-      <td colspan="100" style="padding:6px 12px 2px 28px;background:#fff8f0;border-top:none;">
+      <td colspan="${totalCols}" style="padding:6px 12px 2px 28px;background:#fff8f0;border-top:none;">
         <div class="breakdown-tabs visible" id="${tabsId}">
           <button class="breakdown-tab active" onclick="switchBreakdown('${rowId}','canales',this)">📡 Canales</button>
           <button class="breakdown-tab" onclick="switchBreakdown('${rowId}','sectores',this)">🏷️ Sectores</button>
@@ -974,6 +991,285 @@ function render(){
   outputHTML += '</tbody></table></div>';
 
   document.getElementById('output').innerHTML = outputHTML;
+}
+
+function sanitizeFilename(s){
+  return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_+|_+$/g,'')||'Comerciales';
+}
+
+async function exportComercialesXLSX(){
+  if(DATA.length === 0) return;
+
+  const agg        = buildAggregates();
+  const monthlyAgg = hasMesColumn ? buildMonthlyAggregates() : null;
+  let allKeys       = Object.keys(agg);
+
+  const searchVal = document.getElementById('searchBox').value.trim();
+  const search    = normalize(searchVal);
+  if(search) allKeys = allKeys.filter(k => normalize(agg[k].label || k).includes(search));
+
+  // Algunos comerciales tienen dos entradas (misma persona): una con su equipo local
+  // (Madrid, Barcelona...) y otra con clave "...__INTL" para sus ingresos de Pago
+  // Internacional Directo (equipo "Internacional"). Las emparejamos para sumarlas y
+  // que salgan en una sola fila en vez de dos líneas separadas.
+  const normalKeys = allKeys.filter(k => !k.endsWith('__INTL'));
+  const intlKeySet = new Set(allKeys.filter(k => k.endsWith('__INTL')));
+  const usedIntlKeys = new Set();
+
+  let combos = [];
+  normalKeys.forEach(k => {
+    const dualKey = k + '__INTL';
+    if(intlKeySet.has(dualKey)){
+      combos.push({baseKey:k, dualKey});
+      usedIntlKeys.add(dualKey);
+    } else {
+      combos.push({baseKey:k, dualKey:null});
+    }
+  });
+  // Las entradas de Internacional sin pareja local se mantienen como fila propia
+  intlKeySet.forEach(dk => { if(!usedIntlKeys.has(dk)) combos.push({baseKey:dk, dualKey:null}); });
+
+  // Excluimos a los comerciales del equipo "Sin Asignar" (según el equipo de la entrada
+  // base/local); el resto de equipos (Madrid, Barcelona, Internacional, Programática)
+  // se mantienen todos.
+  combos = combos.filter(c => (agg[c.baseKey].team || 'Sin Asignar') !== 'Sin Asignar');
+
+  const lastIdx  = YEARS.length - 1;
+  const lastYear = YEARS[lastIdx];
+  const prevYear = lastIdx > 0 ? YEARS[lastIdx-1] : null;
+  const showComparable = hasMesColumn && prevYear !== null && selectedMonths.size > 0;
+  const monthsLabel = showComparable ? monthsRangeLabel(selectedMonths) : '';
+
+  const comboYearRaw = (combo, y) => (agg[combo.baseKey][y] || 0) + (combo.dualKey ? (agg[combo.dualKey][y] || 0) : 0);
+  const comboYearComparable = (combo, y) => sumMonths(monthlyAgg, combo.baseKey, y, selectedMonths)
+    + (combo.dualKey ? sumMonths(monthlyAgg, combo.dualKey, y, selectedMonths) : 0);
+
+  const comboLastVal = combo => showComparable ? comboYearComparable(combo, lastYear) : comboYearRaw(combo, lastYear);
+  const comboPrevVal = combo => showComparable ? comboYearComparable(combo, prevYear)
+    : (prevYear !== null ? comboYearRaw(combo, prevYear) : 0);
+
+  // La clasificación Negativo/Positivo se basa siempre en el último año vs el anterior
+  // (mismo criterio que se usa en pantalla y en el resto de dashboards).
+  // Comerciales que nunca deben aparecer en el Excel exportado (bajas, duplicados, etc.)
+  const EXPORT_EXCLUDED_NAMES = new Set(['AMPARO BASTIT', 'LUZ ROCA', 'NORA RECIO LOPEZ TRIVIÑO', 'ANA BELÉN CRUZ DE DIEGO']);
+
+  const items = combos.map(combo => {
+    const last = comboLastVal(combo);
+    const prev = comboPrevVal(combo);
+    return {
+      combo,
+      label: agg[combo.baseKey].label || combo.baseKey,
+      team:  agg[combo.baseKey].team || 'Sin Asignar',
+      last, prev,
+      pct: calcPct(last, prev)
+    };
+  }).filter(it => it.last !== 0 && !EXPORT_EXCLUDED_NAMES.has(it.label));
+
+  if(items.length === 0) return;
+
+  // Orden dentro de cada sección: primero por equipo (Madrid, Barcelona, Programática
+  // y el resto al final) y, dentro de cada equipo, de más a menos por el % de variación
+  // del último año.
+  const TEAM_ORDER_EXPORT = ['Madrid','Barcelona','Programática'];
+  const teamRank = team => {
+    const idx = TEAM_ORDER_EXPORT.indexOf(team);
+    return idx === -1 ? TEAM_ORDER_EXPORT.length : idx;
+  };
+  const sortByTeamThenPct = list => list.sort((a,b) => {
+    const teamDiff = teamRank(a.team) - teamRank(b.team);
+    if(teamDiff !== 0) return teamDiff;
+    const pa = a.pct===null ? -Infinity : a.pct;
+    const pb = b.pct===null ? -Infinity : b.pct;
+    return pb - pa;
+  });
+
+  const negItems = sortByTeamThenPct(items.filter(it => (it.last - it.prev) < 0));
+  const posItems = sortByTeamThenPct(items.filter(it => (it.last - it.prev) >= 0));
+
+  // Construimos la cabecera dinámica igual que en pantalla: por cada año, su columna de
+  // importe (con la columna comparable del año anterior justo delante si el filtro de
+  // meses está activo en el último año) y, a partir del segundo año, su "% vs año anterior".
+  const headerCells = ['', 'Comercial', 'Equipo'];
+  const colTypes = []; // 'eur' | 'pct', uno por cada columna de datos a partir de la C (Equipo)
+  colTypes.push('text'); // Equipo
+  YEARS.forEach((y, idx) => {
+    const isLast = idx === lastIdx;
+    if(isLast && showComparable){
+      headerCells.push(`${prevYear} (${monthsLabel})`);
+      colTypes.push('eur');
+    }
+    const yLabel = (isLast && showComparable) ? `${y} (${monthsLabel})` : `${y}`;
+    headerCells.push(yLabel);
+    colTypes.push('eur');
+    if(idx > 0){
+      headerCells.push((isLast && showComparable) ? `% vs ${prevYear} (${monthsLabel})` : `% vs ${YEARS[idx-1]}`);
+      colTypes.push('pct');
+    }
+  });
+
+  function colLetter(idx0){ // idx0: 0-based → 0='A',1='B'...
+    let n = idx0+1, s = '';
+    while(n > 0){ const rem=(n-1)%26; s=String.fromCharCode(65+rem)+s; n=Math.floor((n-1)/26); }
+    return s;
+  }
+  const COLS = colTypes.map((_,i) => colLetter(i+2)); // +2: saltamos col A (aire) y col B (Comercial)
+
+  function buildRowValues(combo){
+    const vals = [agg[combo.baseKey] ? (agg[combo.baseKey].team||'Sin Asignar') : 'Sin Asignar'];
+    YEARS.forEach((y, idx) => {
+      const isLast = idx === lastIdx;
+      let cVal = null;
+      if(isLast && showComparable){
+        cVal = comboYearComparable(combo, prevYear);
+        vals.push(Math.round(cVal));
+      }
+      const val = (isLast && showComparable) ? comboYearComparable(combo, y) : comboYearRaw(combo, y);
+      vals.push(Math.round(val));
+      if(idx > 0){
+        const prevValForPct = (isLast && showComparable) ? cVal : comboYearRaw(combo, YEARS[idx-1]);
+        const pct = calcPct(val, prevValForPct);
+        vals.push(pct===null ? null : pct/100);
+      }
+    });
+    return vals;
+  }
+
+  // Columna A vacía y estrecha (aire visual); los datos empiezan en la columna B.
+  const aoa = [];
+  aoa.push(['', 'Ingresos por Comercial']);
+  aoa.push(['', `${search?`Búsqueda: "${searchVal}" · `:''}Años: ${YEARS.join(', ')}`]);
+  aoa.push([]);
+  aoa.push(headerCells);
+
+  const rowMeta = [];
+  const thinRowIdxs = [];
+  const sectionRowIdxs = [];
+
+  // Fila separadora muy fina justo debajo de la cabecera
+  aoa.push([]);
+  thinRowIdxs.push(aoa.length-1);
+
+  function addSection(label, list){
+    aoa.push(['', label]);
+    sectionRowIdxs.push(aoa.length-1);
+    aoa.push([]);
+    thinRowIdxs.push(aoa.length-1);
+    list.forEach(it => {
+      rowMeta.push({rowIdx: aoa.length});
+      aoa.push(['', it.label, ...buildRowValues(it.combo)]);
+    });
+  }
+
+  addSection('Comerciales en Negativo', negItems);
+
+  // Fila grande en blanco para separar visualmente el bloque de negativos del de positivos
+  const bigGapIdx = aoa.length;
+  aoa.push([]);
+
+  addSection('Comerciales en Positivo', posItems);
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:2},{wch:32}, ...colTypes.map(t => t==='pct' ? {wch:20} : (t==='text' ? {wch:16} : {wch:16}))];
+
+  const lastCol = colLetter(headerCells.length-1);
+  const NAVY='FF0D2340', WHITE='FFFFFFFF', GREEN='FF1F9D55', RED='FFD64545', GREY='FF6B7280', LIGHTNAVY='FF1F4E79';
+
+  // Cabecera de la tabla: fila más alta, fondo navy, texto blanco y negrita, centrado
+  const headerRow = 3; // índice 0-based dentro del aoa
+  const rows = ws['!rows'] || [];
+  rows[headerRow] = {hpt:26};
+  ws['!rows'] = rows;
+  ['B', ...COLS].forEach(col => {
+    const addr = col + (headerRow+1);
+    if(ws[addr]) ws[addr].s = {
+      font:{bold:true,color:{rgb:WHITE}},
+      fill:{fgColor:{rgb:NAVY}},
+      alignment:{horizontal:'center',vertical:'center'}
+    };
+  });
+
+  // Filas separadoras muy finas
+  thinRowIdxs.forEach(idx => { rows[idx] = {hpt:4}; });
+  // Fila grande en blanco entre el bloque de negativos y el de positivos
+  rows[bigGapIdx] = {hpt:30};
+  ws['!rows'] = rows;
+
+  // Cabeceras de sección "Comerciales en Negativo" / "Comerciales en Positivo"
+  const lastColIdx0 = headerCells.length-1; // índice 0-based de la última columna de datos
+  if(!ws['!merges']) ws['!merges'] = [];
+  sectionRowIdxs.forEach(idx => {
+    ws['!merges'].push({s:{r:idx,c:1},e:{r:idx,c:lastColIdx0}});
+    rows[idx] = {hpt:22};
+    ['B', ...COLS].forEach(col => {
+      const addr = col + (idx+1);
+      if(ws[addr]) ws[addr].s = {
+        font:{bold:true,color:{rgb:WHITE},sz:11},
+        fill:{fgColor:{rgb:LIGHTNAVY}},
+        alignment:{horizontal:'left',vertical:'center'}
+      };
+    });
+    const bAddr = 'B'+(idx+1);
+    if(!ws[bAddr]) ws[bAddr] = {t:'s',v:''};
+  });
+  ws['!rows'] = rows;
+
+  // Filas de datos: centrado, fondo blanco, borde inferior fino. Los % de variación van
+  // en rojo si son negativos y verde si son positivos (umbral ±0.5%, igual que en pantalla).
+  rowMeta.forEach(({rowIdx}) => {
+    const rowNum = rowIdx + 1;
+    ['B', ...COLS].forEach(col => {
+      const addr = col + rowNum;
+      if(!ws[addr]) return;
+      ws[addr].s = {
+        alignment:{horizontal:'center',vertical:'center'},
+        fill:{fgColor:{rgb:WHITE}},
+        border:{bottom:{style:'thin',color:{rgb:'FFE2E6EC'}}}
+      };
+    });
+    COLS.forEach((col,i) => {
+      const addr = col + rowNum;
+      if(!ws[addr]) return;
+      const type = colTypes[i];
+      if(type === 'eur'){
+        ws[addr].z = '#,##0" €"';
+      } else if(type === 'pct' && ws[addr].v!==null && ws[addr].v!==undefined){
+        ws[addr].z = '0.0%';
+        const v = ws[addr].v;
+        const color = v>0.005 ? GREEN : (v<-0.005 ? RED : GREY);
+        ws[addr].s.font = Object.assign({}, ws[addr].s.font, {color:{rgb:color}});
+      }
+    });
+  });
+  ws['!rows'] = rows;
+
+  // Título y subtítulo por encima de la tabla
+  if(ws['B1']) ws['B1'].s = {font:{bold:true,sz:14,color:{rgb:NAVY}}};
+  if(ws['B2']) ws['B2'].s = {font:{sz:10,color:{rgb:GREY}}};
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Comerciales');
+  const fname = `Ingresos_Comerciales_${YEARS[0]}-${lastYear}${showComparable?'_'+sanitizeFilename(monthsLabel):''}${search?'_'+sanitizeFilename(searchVal):''}.xlsx`;
+
+  // Generamos el .xlsx normal y luego editamos el XML interno del zip para quitar
+  // las líneas de cuadrícula antes de descargar (xlsx-js-style no lo expone directo).
+  try{
+    const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+    const zip = await JSZip.loadAsync(wbout);
+    const sheetFiles = Object.keys(zip.files).filter(f => /^xl\/worksheets\/sheet\d+\.xml$/.test(f));
+    for(const f of sheetFiles){
+      let xmlStr = await zip.file(f).async('string');
+      xmlStr = xmlStr.replace(/<sheetView\b/, '<sheetView showGridLines="0"');
+      zip.file(f, xmlStr);
+    }
+    const blob = await zip.generateAsync({type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fname;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }catch(e){
+    XLSX.writeFile(wb, fname, {bookType:'xlsx'});
+  }
 }
 
 function toggleCanal(rowId){
