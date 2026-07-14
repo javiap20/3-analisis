@@ -430,7 +430,11 @@ function processProgramatica(rows,canal,filename,fecha){
     const sector=rawSec.replace(/^[\d\s*]+\*?\s*/,'').trim().toUpperCase()||'SIN SECTOR';
     const anunciante=colAnunciante!==-1?String(row[colAnunciante]||'').trim():'';
     const marca=colMarca!==-1?String(row[colMarca]||'').trim():'';
-    if(normalize(sector)==='vendors') continue;
+    // Las filas cuyo Sector real ya es VENDORS, o que vienen SIN sector relleno en el Excel,
+    // se tratan igual: ya están (o deben quedarse) dentro de VENDORS en los datos base, así
+    // que no se añaden como fila nueva ni entran en la resta de "Con Programática" (evita
+    // restar de más a VENDORS). Ver estructura-excel-programatica.txt.
+    if(!rawSec||normalize(sector)==='vendors') continue;
     const anio=parseInt(row[colAnio],10);
     const mes=colMes!==-1?parseMonth(row[colMes]):null;
     if(isNaN(anio)||anio<2000||anio>2100) continue;
