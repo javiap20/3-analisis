@@ -86,6 +86,24 @@
   table.sector-table tbody tr.sector-pub-row:hover td{background:#ffecc2;}
   tr.sector-pub-row td:first-child{padding-left:33px !important;font-weight:400;color:var(--text);}
   .sector-prog-badge{display:inline-block;font-size:9.5px;font-weight:700;color:#fff;background:#7c3aed;padding:1.5px 6px;border-radius:8px;margin-left:6px;vertical-align:middle;letter-spacing:.01em;}
+
+  /* ── Resumen del sector seleccionado ── */
+  .sector-resumen{display:flex;align-items:center;gap:28px;flex-wrap:wrap;background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:14px 20px;margin:14px 0 18px;}
+  .sr-item{display:flex;flex-direction:column;gap:2px;}
+  .sr-label{font-size:10.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;}
+  .sr-value{font-size:16px;font-weight:700;color:var(--navy);}
+  .sr-pct{font-size:19px;font-weight:800;}
+  .sr-pct.up{color:var(--green);}.sr-pct.down{color:var(--red);}.sr-pct.flat{color:var(--muted);}
+  .sr-delta{font-size:11.5px;font-weight:600;color:var(--muted);}
+  .sr-badge{margin-left:auto;padding:6px 14px;border-radius:16px;font-size:12px;font-weight:700;color:#fff;white-space:nowrap;}
+  .sr-badge.up-strong{background:var(--green);}
+  .sr-badge.flat{background:#8a94a6;}
+  .sr-badge.down-mild{background:#e08e0b;}
+  .sr-badge.down-strong{background:var(--red);}
+
+  /* ── Fila de total visible al final del listado de anunciantes ── */
+  tr.sector-total-row td{background:#eef2f7;font-weight:700;color:var(--navy);border-top:2px solid var(--navy);border-bottom:none !important;}
+  tr.sector-total-row td:first-child{font-weight:700;}
 </style>
 </head>
 <body>
@@ -163,6 +181,7 @@
         <button class="mf-btn" onclick="exportSectorPDF()">📄 Exportar a PDF</button>
       </div>
     </div>
+    <div id="sectorResumen" class="sector-resumen" style="display:none"></div>
     <div id="sectorAdvertisersContainer">
       <div class="sector-empty-hint">Selecciona un sector para ver sus anunciantes.</div>
     </div>
@@ -594,10 +613,39 @@ function computeSectorItems(){
   if(!selectedSector) return {reason:'no-sector'};
   const secNorm=normalize(selectedSector);
   const progOn=progMode==='con';
+  // Cajón genérico de Programática a nivel Anunciante: en los Excel de producción, todo
+  // el ingreso de Programática cae, sin desglosar, bajo el anunciante "Google" dentro del
+  // sector VENDORS. El Excel de Programática sí trae el desglose real (Sector y Anunciante
+  // vía columna PROGR). Ver estructura-excel-programatica.txt.
+  const GENERIC_ANUNCIANTE='Google';
+  const secIsVendors=secNorm===normalize('VENDORS');
   let rows=DATA.filter(d=>d.canal!=='__antivendors'&&normalize(d.sector)===secNorm);
   if(selectedZona) rows=rows.filter(d=>d.team===selectedZona);
-  let progRows=progOn?PROG_DATA.filter(d=>normalize(d.sector)===secNorm):[];
-  if(selectedZona) progRows=progRows.filter(d=>d.team===selectedZona);
+
+  let progRows=[];
+  if(progOn){
+    // Filas cuyo Sector real coincide con el sector seleccionado: se muestran bajo su
+    // Anunciante real, salvo que ese Anunciante venga en blanco o ya sea el cajón genérico
+    // (Google) — esas ya están bien puestas en VENDORS y no se mueven.
+    progRows=PROG_DATA.filter(d=>{
+      if(normalize(d.sector)!==secNorm) return false;
+      const anun=(d.anunciante||'').trim();
+      if(!anun||normalize(anun)===normalize(GENERIC_ANUNCIANTE)) return false;
+      return true;
+    });
+    // Si el sector seleccionado ES VENDORS, hay que restar de "Google" todo lo que sí se
+    // ha movido a otros sectores/anunciantes reales (en cualquier sector), para que el
+    // total global no cambie al activar Con Programática (REPARTO, no suma directa).
+    if(secIsVendors){
+      const antiRows=PROG_DATA.filter(d=>{
+        const anun=(d.anunciante||'').trim();
+        if(!anun||normalize(anun)===normalize(GENERIC_ANUNCIANTE)) return false;
+        return true;
+      }).map(d=>({...d,sector:'VENDORS',anunciante:GENERIC_ANUNCIANTE,ingActual:-d.ingActual,ingAnt:-d.ingAnt}));
+      progRows=progRows.concat(antiRows);
+    }
+    if(selectedZona) progRows=progRows.filter(d=>d.team===selectedZona);
+  }
 
   if(rows.length===0&&progRows.length===0) return {reason:'no-data'};
 
@@ -653,31 +701,63 @@ function computeSectorItems(){
 
   if(items.length===0) return {reason:'no-items'};
 
-  return {reason:'ok', items, lastYear, prevYear, lastLabel, prevLabel, monthsFilter, progOn};
+  const totalPrev=items.reduce((s,it)=>s+it.prev,0);
+  const totalLast=items.reduce((s,it)=>s+it.last,0);
+
+  return {reason:'ok', items, lastYear, prevYear, lastLabel, prevLabel, monthsFilter, progOn, totalPrev, totalLast};
+}
+// Resumen del sector seleccionado (con los filtros de Zona/Programática/Meses ya
+// aplicados): total año anterior vs total año en curso, y un badge de Estado con los
+// mismos umbrales que ya usamos en analisis-sectores.html (>+2.5% En alza,
+// -2.5%/-10% Leve caída, <-10% Caída fuerte, resto Estable).
+function renderSectorResumen(totalPrev,totalLast,prevLabel,lastLabel){
+  const el=document.getElementById('sectorResumen');
+  if(!el) return;
+  const pct=calcPct(totalLast,totalPrev);
+  const delta=totalLast-totalPrev;
+  let badgeCls='flat',badgeTxt='Sin datos previos';
+  if(pct!==null){
+    if(pct>2.5){badgeCls='up-strong';badgeTxt='En alza';}
+    else if(pct>=-2.5){badgeCls='flat';badgeTxt='Estable';}
+    else if(pct>=-10){badgeCls='down-mild';badgeTxt='Leve caída';}
+    else{badgeCls='down-strong';badgeTxt='Caída fuerte';}
+  }
+  const pctColorCls=pct===null?'flat':(pct>0.5?'up':(pct<-0.5?'down':'flat'));
+  el.innerHTML=`
+    <div class="sr-item"><span class="sr-label">${prevLabel}</span><span class="sr-value">${formatEUR(totalPrev)}</span></div>
+    <div class="sr-item"><span class="sr-label">${lastLabel}</span><span class="sr-value">${formatEUR(totalLast)}</span></div>
+    <div class="sr-item"><span class="sr-label">Variación</span><span class="sr-pct ${pctColorCls}">${formatPct(pct)}</span><span class="sr-delta">${formatDeltaEUR(delta)}</span></div>
+    <div class="sr-badge ${badgeCls}">${badgeTxt}</div>`;
+  el.style.display='flex';
 }
 function renderSectorAdvertisers(){
   const container=document.getElementById('sectorAdvertisersContainer');
   const exportWrap=document.getElementById('sectorExportWrap');
+  const resumen=document.getElementById('sectorResumen');
   if(!container) return;
   const data=computeSectorItems();
 
   if(data.reason==='no-sector'){
     container.innerHTML='<div class="sector-empty-hint">Selecciona un sector para ver sus anunciantes.</div>';
     if(exportWrap) exportWrap.style.display='none';
+    if(resumen) resumen.style.display='none';
     return;
   }
   if(data.reason==='no-data'){
     container.innerHTML='<div class="sector-empty-hint">Sin datos para este sector.</div>';
     if(exportWrap) exportWrap.style.display='none';
+    if(resumen) resumen.style.display='none';
     return;
   }
   if(data.reason==='no-items'){
     container.innerHTML='<div class="sector-empty-hint">Sin anunciantes con ingreso en el periodo seleccionado.</div>';
     if(exportWrap) exportWrap.style.display='none';
+    if(resumen) resumen.style.display='none';
     return;
   }
 
-  const {items,prevLabel,lastLabel}=data;
+  const {items,prevLabel,lastLabel,totalPrev,totalLast}=data;
+  renderSectorResumen(totalPrev,totalLast,prevLabel,lastLabel);
 
   let html=`<table class="mini-canal-table sector-table">
     <thead><tr><th>Anunciante</th><th>${prevLabel}</th><th>${lastLabel}</th><th>%</th></tr></thead>
@@ -709,7 +789,16 @@ function renderSectorAdvertisers(){
     });
   });
 
-  html+=`</tbody></table>`;
+  const totalPct=calcPct(totalLast,totalPrev);
+  const totalCls=totalPct===null?'flat':(totalPct>0.5?'up':(totalPct<-0.5?'down':'flat'));
+  html+=`</tbody>
+    <tfoot><tr class="sector-total-row">
+      <td>Total (visible)</td>
+      <td>${formatEUR(totalPrev)}</td>
+      <td>${formatEUR(totalLast)}</td>
+      <td class="pct ${totalCls}">${formatPct(totalPct)} <span class="canal-weight">(${formatDeltaEUR(totalLast-totalPrev)})</span></td>
+    </tr></tfoot>
+  </table>`;
   container.innerHTML=html;
   if(exportWrap) exportWrap.style.display='flex';
 
