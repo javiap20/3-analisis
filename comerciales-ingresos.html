@@ -170,6 +170,35 @@
   .breakdown-tab{padding:3px 10px;border-radius:12px;border:1px solid var(--border);background:#fff;font-size:11px;cursor:pointer;color:var(--navy);font-weight:600;transition:.15s;}
   .breakdown-tab.active{background:var(--accent);border-color:var(--accent);color:#fff;}
   .breakdown-tab:hover{border-color:var(--accent);}
+
+  /* MAIN TABS (Ingresos / Nuevos Anunciantes) */
+  .main-tabs{display:flex;justify-content:center;gap:8px;margin-bottom:14px;}
+  .main-tab{
+    padding:9px 18px;border-radius:8px;border:1px solid var(--border);
+    background:#fff;font-size:13.5px;cursor:pointer;color:var(--navy);
+    font-weight:600;transition:.15s;
+  }
+  .main-tab:hover{border-color:var(--accent);}
+  .main-tab.active{background:var(--navy);border-color:var(--navy);color:#fff;}
+
+  .new-adv-income{font-size:10px;color:var(--muted);font-weight:400;margin-left:3px;}
+  td.new-adv-count{font-weight:700;color:var(--navy);}
+  td.new-adv-empty{color:var(--muted);font-weight:400;}
+  .anun-warning{
+    background:#fff3cd;border:1px solid #ffe08a;color:#8a6100;
+    border-radius:8px;padding:10px 14px;font-size:12.5px;margin-bottom:14px;
+  }
+  .nuevos-footnote{
+    margin-top:16px;padding:10px 14px;font-size:11.5px;color:var(--muted);
+    border-top:1px solid var(--border);line-height:1.5;
+  }
+  .shared-adv-mark{color:#c9a227;font-weight:800;cursor:help;}
+  .detail-table{width:100%;border-collapse:collapse;background:#fff;font-size:11.5px;border-radius:6px;overflow:hidden;table-layout:auto;}
+  .detail-table th{background:#eef2f7;color:var(--navy);font-weight:700;padding:6px 8px;text-align:left;white-space:normal;width:auto;min-width:0;max-width:none;}
+  .detail-table td{padding:6px 8px;border-bottom:1px solid var(--border);white-space:normal;color:var(--text);text-align:left;width:auto;min-width:0;max-width:none;}
+  .detail-table tr:last-child td{border-bottom:none;}
+  .detail-table th:first-child{width:60px;min-width:0;max-width:none;text-align:left;background:#eef2f7;color:var(--navy);}
+  .detail-table td:first-child{width:auto;min-width:0;max-width:none;text-align:left;font-weight:400;color:var(--text);}
 </style>
 </head>
 <body>
@@ -214,6 +243,11 @@
     </div>
   </div>
 
+  <div class="main-tabs" id="mainTabs" style="display:none">
+    <button class="main-tab active" id="mtab-ingresos" onclick="switchMainTab('ingresos')">💶 Ingresos</button>
+    <button class="main-tab" id="mtab-nuevos" onclick="switchMainTab('nuevos')">🆕 Nuevos Anunciantes</button>
+  </div>
+
   <div class="toolbar" id="toolbar" style="display:none">
     <input type="text" id="searchBox" placeholder="&#128269; Buscar comercial..." oninput="render()">
     <div style="display:flex;align-items:center;gap:8px;">
@@ -224,7 +258,7 @@
         <option value="total-asc">Ordenar: Total asc.</option>
         <option value="az">Ordenar: A-Z</option>
       </select>
-      <button class="mf-btn" onclick="exportComercialesXLSX()">📥 Exportar Excel</button>
+      <button class="mf-btn" id="exportBtn" onclick="exportComercialesXLSX()">📥 Exportar Excel</button>
     </div>
   </div>
 
@@ -242,6 +276,8 @@ let DATA = [];
 let YEARS = [];
 let hasMesColumn = false;
 let selectedMonths = new Set();
+let activeMainTab = 'ingresos'; // 'ingresos' | 'nuevos'
+const ANUNCIANTE_COL_MISSING = new Set(); // canales donde no se detectó la columna Anunciantes
 
 const TEAMS_ORDER = ['Madrid', 'Barcelona', 'Internacional', 'Programática', 'Sin Asignar'];
 
@@ -252,6 +288,22 @@ const TEAM_COLORS = {
   'Programática':  '#8e44ad',
   'Sin Asignar':   '#7f8c8d'
 };
+
+// Paleta de colores para distinguir cada año en el desplegable de detalle
+// de la pestaña "Nuevos Anunciantes". Se asigna dinámicamente según el año
+// más reciente hacia atrás (el último año siempre coge el primer color, etc.)
+// para que el color de cada año sea estable año tras año.
+const NUEVOS_ANUN_YEAR_PALETTE = [
+  {bg:'#eaf5ff', border:'#2980b9', text:'#1c5c86'}, // azul
+  {bg:'#eafbf0', border:'#1f9d55', text:'#166b3a'}, // verde
+  {bg:'#fff4e5', border:'#e0821f', text:'#a35c12'}, // naranja
+  {bg:'#fdeeee', border:'#d64545', text:'#a12f2f'}, // rojo
+  {bg:'#f3ecfb', border:'#8e44ad', text:'#652f7d'}  // morado
+];
+function nuevosYearStyle(anio, visibleYearsDesc){
+  const idx = visibleYearsDesc.indexOf(anio);
+  return NUEVOS_ANUN_YEAR_PALETTE[idx % NUEVOS_ANUN_YEAR_PALETTE.length];
+}
 
 // Comerciales forzados siempre en Sin Asignar
 const FORCED_SIN_ASIGNAR = ['MARCOS MARTIN MOYANO SERRANO'];
@@ -278,7 +330,11 @@ const HEADER_ALIASES = {
   anio:       ['año inserción','ano insercion','año insercion','ano inserción','año'],
   mes:        ['mes inserción','mes insercion','mes'],
   importe:    ['imp.neto a comisionar','imp neto a comisionar','importe neto a comisionar','imp.neto comisionar'],
-  sector:     ['sector']
+  sector:     ['sector'],
+  anunciante: ['anunciantes','anunciante','cliente'],
+  marca:      ['marca'],
+  publicacion:['publicación','publicacion','revista','cabecera'],
+  producto:   ['producto','producto/servicio','tipo de producto','tipo producto']
 };
 
 function normalize(str){
@@ -478,10 +534,15 @@ function processWorkbook(data, canal, filename){
   const colMes       = findColIndex(headerRow, HEADER_ALIASES.mes);
   const colImporte   = findColIndex(headerRow, HEADER_ALIASES.importe);
   const colSector    = findColIndex(headerRow, HEADER_ALIASES.sector);
+  const colAnunciante= findColIndex(headerRow, HEADER_ALIASES.anunciante);
+  const colMarca      = findColIndex(headerRow, HEADER_ALIASES.marca);
+  const colPublicacion= findColIndex(headerRow, HEADER_ALIASES.publicacion);
+  const colProducto   = findColIndex(headerRow, HEADER_ALIASES.producto);
 
   if(colComercial === -1 || colAnio === -1 || colImporte === -1){
     markCanalPending(canal); return;
   }
+  if(colAnunciante === -1) ANUNCIANTE_COL_MISSING.add(canal); else ANUNCIANTE_COL_MISSING.delete(canal);
 
   const canalRows = [];
   for(let i = 1; i < rows.length; i++){
@@ -494,6 +555,11 @@ function processWorkbook(data, canal, filename){
     const importe   = parseFloat(String(row[colImporte]).replace(',','.')) || 0;
     const rawSector = colSector !== -1 ? String(row[colSector]||'').trim() : '';
     const sector    = rawSector.replace(/^[\d\s*]+\*?\s*/, '').trim() || 'Sin sector';
+    const rawAnunciante = colAnunciante !== -1 ? String(row[colAnunciante]||'').trim() : '';
+    const anuncianteNorm = normalize(rawAnunciante);
+    const marca       = colMarca       !== -1 ? String(row[colMarca]||'').trim()       : '';
+    const publicacion = colPublicacion !== -1 ? String(row[colPublicacion]||'').trim() : '';
+    const producto     = colProducto    !== -1 ? String(row[colProducto]||'').trim()    : '';
 
     if(!comercial || isNaN(anio) || anio < 2000 || anio > 2100) continue;
 
@@ -505,9 +571,9 @@ function processWorkbook(data, canal, filename){
     if(isForcedMadrid && !esIntl) localTeam = 'Madrid';
 
     if(esIntl){
-      canalRows.push({comercial, comercialKey: comercial + '__INTL', area: rawArea, team: 'Internacional', anio, mes, importe, canal, sector});
+      canalRows.push({comercial, comercialKey: comercial + '__INTL', area: rawArea, team: 'Internacional', anio, mes, importe, canal, sector, anunciante: rawAnunciante, anuncianteNorm, marca, publicacion, producto});
     } else {
-      canalRows.push({comercial, comercialKey: comercial, area: rawArea, team: localTeam, anio, mes, importe, canal, sector});
+      canalRows.push({comercial, comercialKey: comercial, area: rawArea, team: localTeam, anio, mes, importe, canal, sector, anunciante: rawAnunciante, anuncianteNorm, marca, publicacion, producto});
     }
   }
 
@@ -553,6 +619,7 @@ function rebuildData(){
     `${DATA.length.toLocaleString('es-ES')} líneas cargadas · Canales: ${loaded} · Años: ${YEARS.join(', ')}` +
     (hasMesColumn ? '' : ' · columna de mes no detectada');
   document.getElementById('toolbar').style.display = 'flex';
+  document.getElementById('mainTabs').style.display = 'flex';
 
   // Actualizar sub-estado
   const faltan = ['Digital','Print','Eventos'].filter(c => !CANAL_DATA[c]);
@@ -843,7 +910,156 @@ function buildTableHTML(keys, agg, monthlyAgg, canalAgg, canalMonthlyAgg, sector
   return html;
 }
 
+// Agrupa un conjunto de comercialKeys en equipos, aplicando las mismas reglas
+// (reasignación a "Sin Asignar" si no hay ingreso reciente, forzados, etc.)
+// que usa la pestaña de Ingresos. Se reutiliza en la pestaña Nuevos Anunciantes
+// para que ambas pestañas muestren exactamente los mismos equipos/comerciales.
+function assignTeamsForKeys(allKeys, agg){
+  const teamMap = {};
+  TEAMS_ORDER.forEach(t => teamMap[t] = []);
+
+  allKeys.forEach(k => {
+    const ingresoUltimoAnio = YEARS.length > 0 ? (agg[k][YEARS[YEARS.length-1]] || 0) : 1;
+    let team = (agg[k] && agg[k].team) ? agg[k].team : 'Sin Asignar';
+    if(ingresoUltimoAnio === 0) {
+      if(team === 'Internacional') {
+        const _lastY = YEARS[YEARS.length - 1];
+        const _prevY = YEARS.length > 1 ? YEARS[YEARS.length - 2] : null;
+        const _ingLast = (agg[k][_lastY] || 0);
+        const _ingPrev = _prevY ? (agg[k][_prevY] || 0) : 0;
+        if(_ingLast === 0 && _ingPrev === 0) team = 'Sin Asignar';
+      } else {
+        team = 'Sin Asignar';
+      }
+    }
+    // Forzar equipo independientemente de ingresos
+    if(FORCED_BARCELONA.some(f => normalize(f) === normalize(agg[k].label || ''))) team = 'Barcelona';
+    if(FORCED_MADRID_PINNED.some(f => normalize(f) === normalize(agg[k].label || ''))) team = 'Madrid';
+
+    if(teamMap[team]) teamMap[team].push(k);
+    else teamMap['Sin Asignar'].push(k);
+  });
+
+  return teamMap;
+}
+
+function switchMainTab(tab){
+  activeMainTab = tab;
+  document.getElementById('mtab-ingresos').classList.toggle('active', tab === 'ingresos');
+  document.getElementById('mtab-nuevos').classList.toggle('active', tab === 'nuevos');
+  // El filtro de meses y la exportación solo aplican a la pestaña de Ingresos:
+  // Nuevos Anunciantes siempre compara años completos.
+  const mf = document.getElementById('monthFilter');
+  if(mf) mf.style.display = (tab === 'ingresos' && hasMesColumn && YEARS.length > 1) ? 'flex' : 'none';
+  const exportBtn = document.getElementById('exportBtn');
+  if(exportBtn){
+    exportBtn.style.display = '';
+    exportBtn.onclick = (tab === 'ingresos') ? exportComercialesXLSX : exportNuevosAnunciantesXLSX;
+  }
+  const sortSelect = document.getElementById('sortSelect');
+  if(sortSelect){
+    const opts = sortSelect.options;
+    if(tab === 'ingresos'){
+      opts[0].textContent = 'Ordenar: Mayor crecimiento';
+      opts[1].textContent = 'Ordenar: Menor crecimiento';
+      opts[2].textContent = 'Ordenar: Total desc.';
+      opts[3].textContent = 'Ordenar: Total asc.';
+    } else {
+      opts[0].textContent = 'Ordenar: Más nuevos anunciantes';
+      opts[1].textContent = 'Ordenar: Menos nuevos anunciantes';
+      opts[2].textContent = 'Ordenar: Ingreso nuevos desc.';
+      opts[3].textContent = 'Ordenar: Ingreso nuevos asc.';
+    }
+  }
+  render();
+}
+
+// Para cada año presente en el Excel, el conjunto (normalizado) de anunciantes
+// que tuvieron alguna línea ese año, sin importar comercial/canal/equipo.
+// Se usa para decidir si un anunciante es "nuevo" comparando SIEMPRE con el año
+// natural anterior completo (nunca con los meses seleccionados en el filtro).
+function buildAnuncianteYearSets(){
+  const map = {};
+  DATA.forEach(d => {
+    if(!d.anuncianteNorm) return;
+    if(!map[d.anio]) map[d.anio] = new Set();
+    map[d.anio].add(d.anuncianteNorm);
+  });
+  return map;
+}
+
+// Para cada comercial y año, calcula:
+//  - agg[key][anio] = {count, income} de anunciantes nuevos (o null si no se puede determinar)
+//  - detail[key][anio] = lista de {anunciante, marca, publicacion, producto, importe} de esos anunciantes nuevos
+//    (si un anunciante tiene varias líneas, se suman en una sola fila y marca/publicación/producto
+//    listan todos los valores distintos que aparecen)
+function buildNewAdvertisersData(){
+  const yearSets = buildAnuncianteYearSets();
+  const perKey = {}; // [comercialKey][anio][anuncianteNorm] = {label, marcas:Set, publicaciones:Set, productos:Set, importe}
+
+  DATA.forEach(d => {
+    if(!d.anuncianteNorm) return;
+    if(!perKey[d.comercialKey]) perKey[d.comercialKey] = {team: d.team, label: d.comercial, years: {}};
+    const entry = perKey[d.comercialKey];
+    if(!entry.years[d.anio]) entry.years[d.anio] = {};
+    const yearMap = entry.years[d.anio];
+    if(!yearMap[d.anuncianteNorm]) yearMap[d.anuncianteNorm] = {label: d.anunciante, marcas: new Set(), publicaciones: new Set(), productos: new Set(), importe: 0};
+    const adv = yearMap[d.anuncianteNorm];
+    if(d.marca) adv.marcas.add(d.marca);
+    if(d.publicacion) adv.publicaciones.add(d.publicacion);
+    if(d.producto) adv.productos.add(d.producto);
+    adv.importe += d.importe;
+  });
+
+  const agg = {}, detail = {};
+  const shared = {}; // shared[anio][anuncianteNorm] = Set(comercialLabel) que lo tienen como nuevo ese año
+  Object.entries(perKey).forEach(([key, entry]) => {
+    agg[key] = {team: entry.team, label: entry.label};
+    detail[key] = {};
+    Object.keys(entry.years).forEach(anioStr => {
+      const anio = parseInt(anioStr, 10);
+      const prevSet = yearSets[anio - 1];
+      if(!prevSet){
+        agg[key][anio] = null;
+        detail[key][anio] = null;
+        return;
+      }
+      let count = 0, income = 0;
+      const list = [];
+      Object.entries(entry.years[anio]).forEach(([anun, adv]) => {
+        if(prevSet.has(anun)) return;
+        count++; income += adv.importe;
+        list.push({
+          anunciante: adv.label,
+          anuncianteNorm: anun,
+          marca: [...adv.marcas].sort().join(', ') || '—',
+          publicacion: [...adv.publicaciones].sort().join(', ') || '—',
+          producto: [...adv.productos].sort().join(', ') || '—',
+          importe: adv.importe
+        });
+        if(!shared[anio]) shared[anio] = {};
+        if(!shared[anio][anun]) shared[anio][anun] = new Set();
+        shared[anio][anun].add(entry.label);
+      });
+      list.sort((a,b) => b.importe - a.importe);
+      agg[key][anio] = {count, income};
+      detail[key][anio] = list;
+    });
+  });
+  return {agg, detail, shared};
+}
+
+function toggleNuevoDetail(rowId){
+  const row = document.querySelector(`tr.breakdown-row[data-group="${rowId}"]`);
+  const toggle = document.querySelector(`[data-rowid="${rowId}"]`);
+  if(!row) return;
+  const isVisible = row.classList.contains('visible');
+  row.classList.toggle('visible', !isVisible);
+  if(toggle) toggle.textContent = isVisible ? '▶' : '▼';
+}
+
 function render(){
+  if(activeMainTab === 'nuevos'){ renderNuevosAnunciantes(); return; }
   const agg             = buildAggregates();
   const monthlyAgg      = hasMesColumn ? buildMonthlyAggregates() : null;
   const canalAgg         = buildCanalAggregates();
@@ -887,30 +1103,7 @@ function render(){
   const dualKeys = getMadridDualKeys(allKeys, agg);
 
   // Group by team
-  const teamMap = {};
-  TEAMS_ORDER.forEach(t => teamMap[t] = []);
-
-  allKeys.forEach(k => {
-    const ingresoUltimoAnio = YEARS.length > 0 ? (agg[k][YEARS[YEARS.length-1]] || 0) : 1;
-    let team = (agg[k] && agg[k].team) ? agg[k].team : 'Sin Asignar';
-    if(ingresoUltimoAnio === 0) {
-      if(team === 'Internacional') {
-        const _lastY = YEARS[YEARS.length - 1];
-        const _prevY = YEARS.length > 1 ? YEARS[YEARS.length - 2] : null;
-        const _ingLast = (agg[k][_lastY] || 0);
-        const _ingPrev = _prevY ? (agg[k][_prevY] || 0) : 0;
-        if(_ingLast === 0 && _ingPrev === 0) team = 'Sin Asignar';
-      } else {
-        team = 'Sin Asignar';
-      }
-    }
-    // Forzar equipo independientemente de ingresos
-    if(FORCED_BARCELONA.some(f => normalize(f) === normalize(agg[k].label || ''))) team = 'Barcelona';
-    if(FORCED_MADRID_PINNED.some(f => normalize(f) === normalize(agg[k].label || ''))) team = 'Madrid';
-
-    if(teamMap[team]) teamMap[team].push(k);
-    else teamMap['Sin Asignar'].push(k);
-  });
+  const teamMap = assignTeamsForKeys(allKeys, agg);
 
   // Grand totals
   const grandYearTotals = {};
@@ -991,6 +1184,170 @@ function render(){
   outputHTML += '</tbody></table></div>';
 
   document.getElementById('output').innerHTML = outputHTML;
+}
+
+function renderNuevosAnunciantes(){
+  const agg      = buildAggregates(); // misma fuente que Ingresos: mismos comerciales, mismos equipos
+  const { agg: newAgg, detail: detailAgg, shared: sharedMap } = buildNewAdvertisersData();
+  const yearSets = buildAnuncianteYearSets();
+
+  let allKeys = Object.keys(agg);
+  const search = normalize(document.getElementById('searchBox').value);
+  if(search) allKeys = allKeys.filter(k => normalize(agg[k].label || k).includes(search));
+
+  const sortMode = document.getElementById('sortSelect').value;
+  const lastYear = YEARS[YEARS.length - 1];
+  const totalIncomeOf  = k => YEARS.reduce((s,y)=> s + ((newAgg[k] && newAgg[k][y]) ? newAgg[k][y].income : 0), 0);
+  const lastYearCountOf = k => (newAgg[k] && newAgg[k][lastYear]) ? newAgg[k][lastYear].count : 0;
+
+  if(sortMode === 'growth-desc') allKeys.sort((a,b)=> lastYearCountOf(b) - lastYearCountOf(a));
+  else if(sortMode === 'growth-asc') allKeys.sort((a,b)=> lastYearCountOf(a) - lastYearCountOf(b));
+  else if(sortMode === 'total-desc') allKeys.sort((a,b)=> totalIncomeOf(b) - totalIncomeOf(a));
+  else if(sortMode === 'total-asc')  allKeys.sort((a,b)=> totalIncomeOf(a) - totalIncomeOf(b));
+  else allKeys.sort((a,b)=> (agg[a].label||a).localeCompare(agg[b].label||b,'es'));
+
+  const teamMap = assignTeamsForKeys(allKeys, agg);
+
+  let outputHTML = '';
+  if(ANUNCIANTE_COL_MISSING.size > 0){
+    outputHTML += `<div class="anun-warning">⚠️ No se ha detectado la columna <b>Anunciantes</b> en: ${[...ANUNCIANTE_COL_MISSING].join(', ')}. Esas líneas no se cuentan en Nuevos Anunciantes.</div>`;
+  }
+
+  TEAMS_ORDER.forEach(teamName => {
+    const members = teamMap[teamName];
+    if(members.length === 0) return;
+    const color = TEAM_COLORS[teamName] || '#0d2340';
+    const tid   = 'teamn-' + teamName.replace(/\s/g,'_');
+    outputHTML += `
+      <div class="team-block" id="${tid}">
+        <div class="team-header" onclick="toggleTeam('${tid}')">
+          <span class="team-title" style="color:${color}">&#9679; ${teamName}</span>
+          <span class="team-badge" style="background:${color}">${members.length} comercial${members.length!==1?'es':''}</span>
+          <span class="team-toggle" id="toggle-${tid}">▲ Ocultar</span>
+        </div>
+        <div class="team-divider" style="background:linear-gradient(90deg,${color},transparent)"></div>
+        <div class="team-content" id="content-${tid}">
+          ${buildNuevosTableHTML(members, agg, newAgg, detailAgg, yearSets, teamName, sharedMap)}
+        </div>
+      </div>`;
+  });
+
+  // Total global
+  const grandCountTotals = {}, grandIncomeTotals = {};
+  YEARS.forEach(y => { grandCountTotals[y] = 0; grandIncomeTotals[y] = 0; });
+  allKeys.forEach(k => {
+    YEARS.forEach(y => {
+      const cell = newAgg[k] && newAgg[k][y];
+      if(cell){ grandCountTotals[y] += cell.count; grandIncomeTotals[y] += cell.income; }
+    });
+  });
+
+  outputHTML += `
+    <div class="team-block" style="text-align:center;">
+      <div class="team-header" style="justify-content:center;">
+        <span class="team-title" style="color:var(--navy)">&#128202; TOTAL GLOBAL &middot; Nuevos Anunciantes</span>
+      </div>
+      <div class="team-divider"></div>
+      <table style="margin:0 auto;width:600px;table-layout:fixed;">
+        <thead><tr>
+          <th style="text-align:center;width:120px;">Año</th>
+          <th style="text-align:center;width:480px;">Nuevos anunciantes</th>
+        </tr></thead>
+        <tbody>`;
+  YEARS.filter(y => !!yearSets[y-1]).forEach(y => {
+    const cellHTML = `${grandCountTotals[y]}${grandCountTotals[y]>0 ? `<span class="new-adv-income">(${formatEUR(grandIncomeTotals[y])})</span>` : ''}`;
+    outputHTML += `<tr>
+      <td style="text-align:center;font-weight:600;">${y}</td>
+      <td style="text-align:center;font-weight:700;">${cellHTML}</td>
+    </tr>`;
+  });
+  outputHTML += '</tbody></table></div>';
+
+  outputHTML += `
+    <div class="nuevos-footnote">
+      * Los anunciantes nuevos marcados con <span class="shared-adv-mark">*</span> en el detalle de cada comercial se imputan simultáneamente a dos comerciales, al tratarse de cuentas compartidas al 50% entre ambos. En estos casos, el anunciante se contabiliza como nuevo para los dos comerciales implicados.
+    </div>`;
+
+  document.getElementById('output').innerHTML = outputHTML;
+}
+
+function buildNuevosTableHTML(keys, agg, newAgg, detailAgg, yearSets, teamName, sharedMap){
+  const teamCountTotals = {}, teamIncomeTotals = {};
+  YEARS.forEach(y => { teamCountTotals[y] = 0; teamIncomeTotals[y] = 0; });
+
+  // Años con datos reales para "nuevos anunciantes" (se excluye el primer año
+  // disponible, p.ej. 2023, porque al no tener el año anterior en el Excel no
+  // se puede calcular y esa columna quedaría siempre vacía).
+  const visibleYears = YEARS.filter(y => !!yearSets[y-1]);
+  const visibleYearsDesc = [...visibleYears].sort((a,b)=> b-a);
+
+  const totalCols = visibleYears.length + 1;
+  let html = '<table><thead><tr><th>Comercial</th>';
+  visibleYears.forEach(y => { html += `<th class="col-divider">${y}</th>`; });
+  html += '</tr></thead><tbody>';
+
+  const { normal, pinned } = splitPinned(keys, agg);
+  const orderedKeys = [...normal, ...pinned];
+
+  orderedKeys.forEach(k => {
+    const label = agg[k].label || k;
+    const rowId = 'nuevo-' + k.replace(/[^a-zA-Z0-9]/g,'_');
+
+    // Detalle combinado de todos los años para este comercial
+    const detailRows = [];
+    visibleYears.forEach(y => {
+      const list = detailAgg[k] && detailAgg[k][y];
+      if(Array.isArray(list)) list.forEach(item => detailRows.push(Object.assign({anio: y}, item)));
+    });
+    detailRows.sort((a,b) => b.anio - a.anio || b.importe - a.importe);
+    const hasDetail = detailRows.length > 0;
+
+    html += `<tr><td>${hasDetail
+      ? `<span class="toggle-canal" data-rowid="${rowId}" onclick="toggleNuevoDetail('${rowId}')">▶</span>`
+      : `<span style="display:inline-block;width:14px;"></span>`}${label}</td>`;
+    visibleYears.forEach(y => {
+      const cell = (newAgg[k] && newAgg[k][y]) ? newAgg[k][y] : {count:0, income:0};
+      teamCountTotals[y] += cell.count;
+      teamIncomeTotals[y] += cell.income;
+      html += `<td class="col-divider new-adv-count">${cell.count}${cell.count>0 ? `<span class="new-adv-income">(${formatEUR(cell.income)})</span>` : ''}</td>`;
+    });
+    html += '</tr>';
+
+    if(hasDetail){
+      html += `<tr class="breakdown-row" data-group="${rowId}"><td colspan="${totalCols}" style="padding:8px 12px 12px 28px;background:#fff8f0;border-top:none;">
+        <table class="detail-table"><thead><tr>
+          <th style="width:60px;">Año</th><th>Anunciante</th><th>Marca</th><th>Publicación</th><th>Producto</th><th style="width:110px;">Ingreso total</th>
+        </tr></thead><tbody>`;
+      detailRows.forEach(item => {
+        const st = nuevosYearStyle(item.anio, visibleYearsDesc);
+        const tdBg = `background:${st.bg};`;
+        const sharers = sharedMap && sharedMap[item.anio] && sharedMap[item.anio][item.anuncianteNorm];
+        const isShared = sharers && sharers.size >= 2;
+        let anuncianteHTML = item.anunciante;
+        if(isShared){
+          const otros = [...sharers].filter(nombre => nombre !== label);
+          const tip = `Cuenta compartida al 50% también con: ${otros.join(', ') || 'otro comercial'}`;
+          anuncianteHTML = `${item.anunciante}<span class="shared-adv-mark" title="${tip.replace(/"/g,'&quot;')}">&nbsp;*</span>`;
+        }
+        html += `<tr style="border-left:3px solid ${st.border};">`
+          + `<td style="${tdBg}color:${st.text};font-weight:700;">${item.anio}</td>`
+          + `<td style="${tdBg}">${anuncianteHTML}</td>`
+          + `<td style="${tdBg}">${item.marca}</td>`
+          + `<td style="${tdBg}">${item.publicacion}</td>`
+          + `<td style="${tdBg}">${item.producto}</td>`
+          + `<td style="${tdBg}">${formatEUR(item.importe)}</td>`
+          + `</tr>`;
+      });
+      html += `</tbody></table></td></tr>`;
+    }
+  });
+
+  html += `<tr class="team-total-row"><td>📊 Total ${teamName}</td>`;
+  visibleYears.forEach(y => {
+    html += `<td class="col-divider">${teamCountTotals[y]}${teamCountTotals[y]>0 ? `<span class="new-adv-income">(${formatEUR(teamIncomeTotals[y])})</span>` : ''}</td>`;
+  });
+  html += '</tr></tbody></table>';
+  return html;
 }
 
 function sanitizeFilename(s){
@@ -1252,6 +1609,279 @@ async function exportComercialesXLSX(){
 
   // Generamos el .xlsx normal y luego editamos el XML interno del zip para quitar
   // las líneas de cuadrícula antes de descargar (xlsx-js-style no lo expone directo).
+  try{
+    const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+    const zip = await JSZip.loadAsync(wbout);
+    const sheetFiles = Object.keys(zip.files).filter(f => /^xl\/worksheets\/sheet\d+\.xml$/.test(f));
+    for(const f of sheetFiles){
+      let xmlStr = await zip.file(f).async('string');
+      xmlStr = xmlStr.replace(/<sheetView\b/, '<sheetView showGridLines="0"');
+      zip.file(f, xmlStr);
+    }
+    const blob = await zip.generateAsync({type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fname;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }catch(e){
+    XLSX.writeFile(wb, fname, {bookType:'xlsx'});
+  }
+}
+
+async function exportNuevosAnunciantesXLSX(){
+  if(DATA.length === 0) return;
+
+  const agg = buildAggregates(); // mismos comerciales/equipos que en pantalla
+  const { agg: newAgg, detail: detailAgg } = buildNewAdvertisersData();
+  const yearSets = buildAnuncianteYearSets();
+  const visibleYears = YEARS.filter(y => !!yearSets[y-1]);
+  if(visibleYears.length === 0) return;
+
+  let allKeys = Object.keys(agg);
+  const searchVal = document.getElementById('searchBox').value.trim();
+  const search = normalize(searchVal);
+  if(search) allKeys = allKeys.filter(k => normalize(agg[k].label || k).includes(search));
+
+  // Mismo criterio de orden que el desplegable "Ordenar" de la pantalla
+  const sortMode = document.getElementById('sortSelect').value;
+  const lastYear = visibleYears[visibleYears.length - 1];
+  const totalIncomeOf  = k => visibleYears.reduce((s,y)=> s + ((newAgg[k] && newAgg[k][y]) ? newAgg[k][y].income : 0), 0);
+  const lastYearCountOf = k => (newAgg[k] && newAgg[k][lastYear]) ? newAgg[k][lastYear].count : 0;
+  if(sortMode === 'growth-desc') allKeys.sort((a,b)=> lastYearCountOf(b) - lastYearCountOf(a));
+  else if(sortMode === 'growth-asc') allKeys.sort((a,b)=> lastYearCountOf(a) - lastYearCountOf(b));
+  else if(sortMode === 'total-desc') allKeys.sort((a,b)=> totalIncomeOf(b) - totalIncomeOf(a));
+  else if(sortMode === 'total-asc')  allKeys.sort((a,b)=> totalIncomeOf(a) - totalIncomeOf(b));
+  else allKeys.sort((a,b)=> (agg[a].label||a).localeCompare(agg[b].label||b,'es'));
+
+  const teamMap = assignTeamsForKeys(allKeys, agg);
+
+  function colLetter(idx0){
+    let n = idx0+1, s = '';
+    while(n > 0){ const rem=(n-1)%26; s=String.fromCharCode(65+rem)+s; n=Math.floor((n-1)/26); }
+    return s;
+  }
+
+  // Cabecera dinámica: por cada año visible, dos columnas (Nº nuevos anunciantes / Ingreso)
+  const headerCells = ['', 'Comercial'];
+  const colTypes = []; // 'num' | 'eur', una por columna de datos a partir de la C
+  visibleYears.forEach(y => {
+    headerCells.push(`${y} · Nº nuevos`);
+    colTypes.push('num');
+    headerCells.push(`${y} · Ingreso`);
+    colTypes.push('eur');
+  });
+  const COLS = colTypes.map((_,i) => colLetter(i+2)); // +2: saltamos col A (aire) y col B (Comercial)
+
+  function buildRowValues(key){
+    const vals = [];
+    visibleYears.forEach(y => {
+      const cell = (newAgg[key] && newAgg[key][y]) ? newAgg[key][y] : {count:0, income:0};
+      vals.push(cell.count);
+      vals.push(Math.round(cell.income));
+    });
+    return vals;
+  }
+
+  const aoa = [];
+  aoa.push(['', 'Nuevos Anunciantes por Comercial']);
+  aoa.push(['', `${search?`Búsqueda: "${searchVal}" · `:''}Años: ${visibleYears.join(', ')}`]);
+  aoa.push([]);
+  aoa.push(headerCells);
+
+  const rowMeta = [];
+  const thinRowIdxs = [];
+  const sectionRowIdxs = [];
+  const teamTotalRowIdxs = [];
+
+  aoa.push([]);
+  thinRowIdxs.push(aoa.length-1);
+
+  const grandCountTotals = {}, grandIncomeTotals = {};
+  visibleYears.forEach(y => { grandCountTotals[y] = 0; grandIncomeTotals[y] = 0; });
+
+  TEAMS_ORDER.forEach(teamName => {
+    const members = teamMap[teamName];
+    if(!members || members.length === 0) return;
+    const { normal, pinned } = splitPinned(members, agg);
+    const orderedKeys = [...normal, ...pinned];
+
+    aoa.push(['', teamName]);
+    sectionRowIdxs.push(aoa.length-1);
+    aoa.push([]);
+    thinRowIdxs.push(aoa.length-1);
+
+    const teamCountTotals = {}, teamIncomeTotals = {};
+    visibleYears.forEach(y => { teamCountTotals[y] = 0; teamIncomeTotals[y] = 0; });
+
+    orderedKeys.forEach(k => {
+      const rowVals = buildRowValues(k);
+      visibleYears.forEach((y, i) => {
+        teamCountTotals[y]  += rowVals[i*2];
+        teamIncomeTotals[y] += rowVals[i*2+1];
+        grandCountTotals[y]  += rowVals[i*2];
+        grandIncomeTotals[y] += rowVals[i*2+1];
+      });
+      rowMeta.push({rowIdx: aoa.length});
+      aoa.push(['', agg[k].label || k, ...rowVals]);
+    });
+
+    const teamTotalVals = [];
+    visibleYears.forEach(y => { teamTotalVals.push(teamCountTotals[y]); teamTotalVals.push(Math.round(teamIncomeTotals[y])); });
+    teamTotalRowIdxs.push(aoa.length);
+    aoa.push(['', `Total ${teamName}`, ...teamTotalVals]);
+
+    aoa.push([]);
+  });
+
+  // Total global
+  const grandTotalVals = [];
+  visibleYears.forEach(y => { grandTotalVals.push(grandCountTotals[y]); grandTotalVals.push(Math.round(grandIncomeTotals[y])); });
+  const grandTotalRowIdx = aoa.length;
+  aoa.push(['', 'TOTAL GLOBAL', ...grandTotalVals]);
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:2},{wch:32}, ...colTypes.map(() => ({wch:16}))];
+
+  const NAVY='FF0D2340', WHITE='FFFFFFFF', LIGHTNAVY='FF1F4E79', GOLD='FFC9A227';
+
+  const headerRow = 3;
+  const rows = ws['!rows'] || [];
+  rows[headerRow] = {hpt:26};
+  ws['!rows'] = rows;
+  ['B', ...COLS].forEach(col => {
+    const addr = col + (headerRow+1);
+    if(ws[addr]) ws[addr].s = {
+      font:{bold:true,color:{rgb:WHITE}},
+      fill:{fgColor:{rgb:NAVY}},
+      alignment:{horizontal:'center',vertical:'center'}
+    };
+  });
+
+  thinRowIdxs.forEach(idx => { rows[idx] = {hpt:4}; });
+  ws['!rows'] = rows;
+
+  const lastColIdx0 = headerCells.length-1;
+  if(!ws['!merges']) ws['!merges'] = [];
+  sectionRowIdxs.forEach(idx => {
+    ws['!merges'].push({s:{r:idx,c:1},e:{r:idx,c:lastColIdx0}});
+    rows[idx] = {hpt:22};
+    ['B', ...COLS].forEach(col => {
+      const addr = col + (idx+1);
+      if(ws[addr]) ws[addr].s = {
+        font:{bold:true,color:{rgb:WHITE},sz:11},
+        fill:{fgColor:{rgb:LIGHTNAVY}},
+        alignment:{horizontal:'left',vertical:'center'}
+      };
+    });
+    const bAddr = 'B'+(idx+1);
+    if(!ws[bAddr]) ws[bAddr] = {t:'s',v:''};
+  });
+  ws['!rows'] = rows;
+
+  // Filas de datos
+  rowMeta.forEach(({rowIdx}) => {
+    const rowNum = rowIdx + 1;
+    ['B', ...COLS].forEach(col => {
+      const addr = col + rowNum;
+      if(!ws[addr]) return;
+      ws[addr].s = {
+        alignment:{horizontal:'center',vertical:'center'},
+        fill:{fgColor:{rgb:WHITE}},
+        border:{bottom:{style:'thin',color:{rgb:'FFE2E6EC'}}}
+      };
+    });
+    COLS.forEach((col,i) => {
+      const addr = col + rowNum;
+      if(!ws[addr]) return;
+      if(colTypes[i] === 'eur') ws[addr].z = '#,##0" €"';
+    });
+  });
+
+  // Filas de total por equipo (negrita, fondo gris claro)
+  teamTotalRowIdxs.forEach(idx => {
+    const rowNum = idx + 1;
+    ['B', ...COLS].forEach(col => {
+      const addr = col + rowNum;
+      if(!ws[addr]) return;
+      ws[addr].s = {
+        font:{bold:true,color:{rgb:'FF0D2340'}},
+        alignment:{horizontal:'center',vertical:'center'},
+        fill:{fgColor:{rgb:'FFF0F2F5'}},
+        border:{top:{style:'thin',color:{rgb:'FFCBD3DE'}}}
+      };
+    });
+    COLS.forEach((col,i) => {
+      const addr = col + rowNum;
+      if(!ws[addr]) return;
+      if(colTypes[i] === 'eur') ws[addr].z = '#,##0" €"';
+    });
+  });
+
+  // Fila de total global (destacada en dorado/navy)
+  {
+    const rowNum = grandTotalRowIdx + 1;
+    rows[grandTotalRowIdx] = {hpt:24};
+    ws['!rows'] = rows;
+    ['B', ...COLS].forEach(col => {
+      const addr = col + rowNum;
+      if(!ws[addr]) return;
+      ws[addr].s = {
+        font:{bold:true,color:{rgb:WHITE},sz:11.5},
+        alignment:{horizontal:'center',vertical:'center'},
+        fill:{fgColor:{rgb:NAVY}}
+      };
+    });
+    COLS.forEach((col,i) => {
+      const addr = col + rowNum;
+      if(!ws[addr]) return;
+      if(colTypes[i] === 'eur') ws[addr].z = '#,##0" €"';
+    });
+  }
+
+  if(ws['B1']) ws['B1'].s = {font:{bold:true,sz:14,color:{rgb:NAVY}}};
+  if(ws['B2']) ws['B2'].s = {font:{sz:10,color:{rgb:'FF6B7280'}}};
+
+  // Segunda hoja: detalle línea a línea de cada anunciante nuevo (mismos datos
+  // que se ven al desplegar cada comercial en pantalla).
+  const detailAoa = [['Año', 'Equipo', 'Comercial', 'Anunciante', 'Marca', 'Publicación', 'Producto', 'Ingreso']];
+  const detailRows = [];
+  Object.keys(agg).forEach(k => {
+    if(search && !normalize(agg[k].label || k).includes(search)) return;
+    const team = agg[k].team || 'Sin Asignar';
+    visibleYears.forEach(y => {
+      const list = detailAgg[k] && detailAgg[k][y];
+      if(!Array.isArray(list)) return;
+      list.forEach(item => {
+        detailRows.push([y, team, agg[k].label || k, item.anunciante, item.marca, item.publicacion, item.producto, Math.round(item.importe)]);
+      });
+    });
+  });
+  const teamRankDetail = t => { const idx = TEAMS_ORDER.indexOf(t); return idx===-1 ? TEAMS_ORDER.length : idx; };
+  detailRows.sort((a,b) => b[0]-a[0] || teamRankDetail(a[1])-teamRankDetail(b[1]) || String(a[2]).localeCompare(String(b[2]),'es') || b[7]-a[7]);
+  detailAoa.push(...detailRows);
+
+  const ws2 = XLSX.utils.aoa_to_sheet(detailAoa);
+  ws2['!cols'] = [{wch:8},{wch:14},{wch:26},{wch:26},{wch:22},{wch:16},{wch:22},{wch:14}];
+  const headerCols2 = ['A','B','C','D','E','F','G','H'];
+  headerCols2.forEach(col => {
+    const addr = col+'1';
+    if(ws2[addr]) ws2[addr].s = {
+      font:{bold:true,color:{rgb:WHITE}},
+      fill:{fgColor:{rgb:NAVY}},
+      alignment:{horizontal:'center',vertical:'center'}
+    };
+  });
+  for(let r=2; r<=detailAoa.length; r++){
+    const addr = 'H'+r;
+    if(ws2[addr]){ ws2[addr].z = '#,##0" €"'; ws2[addr].s = {alignment:{horizontal:'right'}}; }
+  }
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Nuevos Anunciantes');
+  XLSX.utils.book_append_sheet(wb, ws2, 'Detalle');
+  const fname = `Nuevos_Anunciantes_${visibleYears[0]}-${visibleYears[visibleYears.length-1]}${search?'_'+sanitizeFilename(searchVal):''}.xlsx`;
+
   try{
     const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
     const zip = await JSZip.loadAsync(wbout);
