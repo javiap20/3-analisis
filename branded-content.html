@@ -726,36 +726,61 @@ function renderDigitalSummary(lastYear,monthsFilter,zonaSectorFilter){
 // absoluto). Las negativas sin una positiva de importe exacto no cancelan nada
 // (quedan "sueltas" y no restan). Cada positiva que sobrevive cuenta como 1 BC real.
 function computeRealPubStats(pubItems,activeProduct,pub){
+  // Agrupamos por anunciante+marca para cancelar reparos
   const groups=new Map();
   pubItems.forEach(it=>{
     const key=normalize(it.anunciante)+'|||'+normalize(it.marca);
     if(!groups.has(key)) groups.set(key,{pos:[],neg:[]});
-    if(it.importe>0) groups.get(key).pos.push(it.importe);
-    else if(it.importe<0) groups.get(key).neg.push(it.importe);
+    if(it.importe>0) groups.get(key).pos.push(it);
+    else if(it.importe<0) groups.get(key).neg.push(it);
   });
   const realValues=[];
   groups.forEach(g=>{
-    const pos=g.pos.slice();
-    g.neg.forEach(nVal=>{
-      const target=Math.abs(nVal);
-      // Solo cancela si hay una positiva con el importe EXACTAMENTE igual (redondeado a céntimos).
-      // Si no hay coincidencia exacta, esta negativa queda suelta y no resta nada.
-      const exactIdx=pos.findIndex(p=>Math.round(p*100)===Math.round(target*100));
-      if(exactIdx>=0) pos.splice(exactIdx,1); // esta positiva queda cancelada por el reparo
+    const posItems=g.pos.slice();
+    g.neg.forEach(nIt=>{
+      const target=Math.abs(nIt.importe);
+      const exactIdx=posItems.findIndex(p=>Math.round(p.importe*100)===Math.round(target*100));
+      if(exactIdx>=0) posItems.splice(exactIdx,1);
     });
-    realValues.push(...pos);
+    // Emparejar ventas conjuntas: mismo importe + comerciales diferentes + Madrid y Barcelona
+    const byImporte=new Map();
+    posItems.forEach(it=>{
+      const ik=Math.round(it.importe*100);
+      if(!byImporte.has(ik)) byImporte.set(ik,[]);
+      byImporte.get(ik).push(it);
+    });
+    byImporte.forEach(subGroup=>{
+      const madridItems=subGroup.filter(it=>(it.team||'').toLowerCase()==='madrid');
+      const barcelonaItems=subGroup.filter(it=>(it.team||'').toLowerCase()==='barcelona');
+      const otherItems=subGroup.filter(it=>{const t=(it.team||'').toLowerCase();return t!=='madrid'&&t!=='barcelona';});
+      const pairs=Math.min(madridItems.length,barcelonaItems.length);
+      let pairedM=0,pairedB=0;
+      for(let i=0;i<pairs;i++){
+        if(normalize(madridItems[i].comercial||'')!==normalize(barcelonaItems[i].comercial||'')){
+          realValues.push(madridItems[i].importe+barcelonaItems[i].importe);
+          pairedM++;pairedB++;
+        } else {
+          realValues.push(madridItems[i].importe);
+          realValues.push(barcelonaItems[i].importe);
+        }
+      }
+      for(let i=pairedM;i<madridItems.length;i++) realValues.push(madridItems[i].importe);
+      for(let i=pairedB;i<barcelonaItems.length;i++) realValues.push(barcelonaItems[i].importe);
+      otherItems.forEach(it=>realValues.push(it.importe));
+    });
   });
   const realCount=realValues.length;
   const media=realCount>0?realValues.reduce((a,b)=>a+b,0)/realCount:null;
   const belowMedia=media!==null?realValues.filter(v=>v<media).length:0;
   const presupuesto=getAvgBudget(activeProduct.id,pub);
   const belowPresupuesto=presupuesto!==null?realValues.filter(v=>v<presupuesto).length:null;
-  return {realCount,media,belowMedia,presupuesto,belowPresupuesto};
+  return {realCount,media,belowMedia,presupuesto,belowPresupuesto,realValues};
 }
 
 // Estado del bloque "BC Reales por Publicación", para poder desplegar el
 // desglose por sector de una publicación sin tener que recalcular todo desde cero.
 let pubSummaryState=null;
+let customBelowThreshold=4000;
 
 function computeSectorBreakdownForPub(pub){
   const items=(pubSummaryState&&pubSummaryState.byPub.get(pub))||[];
@@ -785,44 +810,63 @@ function renderPubSummaryTable(){
   const presupuestoRows=rows.filter(r=>r.belowPresupuesto!==null);
   const totalBelowPresupuesto=presupuestoRows.length>0?presupuestoRows.reduce((s,r)=>s+r.belowPresupuesto,0):null;
   const totalBelowMedia=rows.reduce((s,r)=>s+r.belowMedia,0);
+  // Columna personalizada: contar BCs por debajo del umbral
+  const totalBelowCustom=rows.reduce((s,r)=>{
+    const count=r.realValues?r.realValues.filter(v=>v<customBelowThreshold).length:0;
+    return s+count;
+  },0);
 
-  let html=`<div class="block-card-title">📈 BC Reales por Publicación · ${activeProduct.label} ${lastYear}</div>
+  let html=`<div class="block-card-title">\u{1F4C8} BC Reales por Publicaci\u00f3n \u00b7 ${activeProduct.label} ${lastYear}</div>
+    <div style="margin:-10px 0 14px;display:flex;align-items:center;gap:8px;justify-content:flex-end;">
+      <label style="font-size:12px;color:var(--muted);">Umbral personalizado:</label>
+      <input type="number" id="customThresholdInput" value="${customBelowThreshold}" min="0" step="500"
+        style="width:90px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;"
+        onchange="customBelowThreshold=Number(this.value)||0;renderPubSummaryTable();"
+        onkeyup="if(event.key==='Enter'){customBelowThreshold=Number(this.value)||0;renderPubSummaryTable();}">
+      <span style="font-size:11px;color:var(--muted);">\u20ac</span>
+    </div>
     <table class="mini-canal-table">
       <thead><tr>
-        <th style="text-align:left;">Publicación</th>
+        <th style="text-align:left;">Publicaci\u00f3n</th>
         <th>BC Reales</th>
         <th>Por debajo del presupuesto</th>
         <th>Por debajo de la media</th>
+        <th>Por debajo de ${formatEUR(customBelowThreshold)}</th>
       </tr></thead>
       <tbody>
         <tr class="pub-total-row" style="background:#eef6ff;">
           <td style="text-align:left;font-weight:800;">Total Hearst</td>
           <td style="font-weight:800;">${totalReal}</td>
-          <td style="font-weight:800;">${totalBelowPresupuesto===null?'—':totalBelowPresupuesto}</td>
+          <td style="font-weight:800;">${totalBelowPresupuesto===null?'\u2014':totalBelowPresupuesto}</td>
           <td style="font-weight:800;">${totalBelowMedia}</td>
+          <td style="font-weight:800;">${totalBelowCustom}</td>
         </tr>`;
 
   rows.forEach((r,idx)=>{
     const isActive=expandedIdx===idx;
     const dimCls=(expandedIdx!==null&&!isActive)?' pub-row-dim':'';
     const activeCls=isActive?' pub-row-active':'';
+    const belowCustom=r.realValues?r.realValues.filter(v=>v<customBelowThreshold).length:0;
     html+=`<tr class="pub-row${dimCls}${activeCls}" onclick="togglePubSector(${idx})">
-      <td style="text-align:left;"><span class="pub-toggle${isActive?' open':''}">▶</span>${r.pub}</td>
+      <td style="text-align:left;"><span class="pub-toggle${isActive?' open':''}">\u25b6</span>${r.pub}</td>
       <td>${r.realCount}</td>
-      <td>${r.belowPresupuesto===null?'—':r.belowPresupuesto}</td>
+      <td>${r.belowPresupuesto===null?'\u2014':r.belowPresupuesto}</td>
       <td>${r.belowMedia}</td>
+      <td>${belowCustom}</td>
     </tr>`;
     if(isActive){
       const secRows=computeSectorBreakdownForPub(r.pub);
       if(secRows.length===0){
-        html+=`<tr class="pub-sector-row"><td colspan="4" style="font-style:italic;color:var(--muted);">Sin desglose por sector para esta publicación.</td></tr>`;
+        html+=`<tr class="pub-sector-row"><td colspan="5" style="font-style:italic;color:var(--muted);">Sin desglose por sector para esta publicaci\u00f3n.</td></tr>`;
       }else{
         secRows.forEach(sr=>{
+          const srBelowCustom=sr.realValues?sr.realValues.filter(v=>v<customBelowThreshold).length:0;
           html+=`<tr class="pub-sector-row">
-            <td>🏷️ ${sr.sector}</td>
+            <td>\u{1F3F7}\uFE0F ${sr.sector}</td>
             <td>${sr.realCount}</td>
-            <td>${sr.belowPresupuesto===null?'—':sr.belowPresupuesto}</td>
+            <td>${sr.belowPresupuesto===null?'\u2014':sr.belowPresupuesto}</td>
             <td>${sr.belowMedia}</td>
+            <td>${srBelowCustom}</td>
           </tr>`;
         });
       }
@@ -830,7 +874,7 @@ function renderPubSummaryTable(){
   });
 
   html+=`</tbody></table>
-    <div style="margin-top:14px;font-size:11px;color:#94a3b8;">BC Reales = líneas positivas tras aplicar reparos (una línea negativa solo cancela una positiva del mismo anunciante+marca+publicación con el importe EXACTAMENTE igual; las negativas sueltas sin una positiva exacta que cancelar no restan). Media = promedio de los importes reales de esa publicación en el periodo filtrado. Pincha en una publicación para ver su desglose por sector.</div>`;
+    <div style="margin-top:14px;font-size:11px;color:#94a3b8;">BC Reales = l\u00edneas positivas tras aplicar reparos (una l\u00ednea negativa solo cancela una positiva del mismo anunciante+marca+publicaci\u00f3n con el importe EXACTAMENTE igual; las negativas sueltas sin una positiva exacta que cancelar no restan). Media = promedio de los importes reales de esa publicaci\u00f3n en el periodo filtrado. Pincha en una publicaci\u00f3n para ver su desglose por sector.</div>`;
 
   container.innerHTML=html;
 }
@@ -913,6 +957,7 @@ function renderBrandedContent(){
     publicacion:d.publicacion||'(sin publicación)',
     detalle:d.detalle||'',
     comercial:d.comercial||'',
+    team:d.team||'',
     importe:d.importe
   }));
 
@@ -991,10 +1036,67 @@ function renderBrandedContent(){
     const pubTotal=pubItems.reduce((s,it)=>s+it.importe,0);
     const topPad=pubIdx===0?14:26;
     const avgBudget=getAvgBudget(activeProduct.id,pub);
-    const belowCount=avgBudget!==null?pubItems.filter(it=>it.importe>0&&it.importe<avgBudget).length:0;
+    // Fusionar ventas conjuntas: misma info pero un comercial Madrid y otro Barcelona
+    // Aplica a TODAS las lineas (positivas Y negativas)
+    const displayRows=[];
+    const processed=new Set();
+    for(let i=0;i<pubItems.length;i++){
+      if(processed.has(i)) continue;
+      let merged=false;
+      for(let j=i+1;j<pubItems.length;j++){
+        if(processed.has(j)) continue;
+        const a=pubItems[i],b=pubItems[j];
+        // Mismo anunciante + marca + importe exacto
+        if(normalize(a.anunciante)===normalize(b.anunciante)&&
+           normalize(a.marca)===normalize(b.marca)&&
+           Math.round(a.importe*100)===Math.round(b.importe*100)){
+          // Comerciales diferentes
+          if(normalize(a.comercial||'')!==normalize(b.comercial||'')){
+            // Uno de Madrid y otro de Barcelona
+            const tA=(a.team||'').toLowerCase(),tB=(b.team||'').toLowerCase();
+            if((tA==='madrid'&&tB==='barcelona')||(tA==='barcelona'&&tB==='madrid')){
+              const madItem=tA==='madrid'?a:b;
+              const bcnItem=tA==='barcelona'?a:b;
+              displayRows.push({
+                anunciante:a.anunciante,
+                marca:a.marca,
+                sector:a.sector,
+                comercial:(madItem.comercial||'')+', '+(bcnItem.comercial||''),
+                importe:a.importe+b.importe
+              });
+              processed.add(i);
+              processed.add(j);
+              merged=true;
+              break;
+            }
+          }
+        }
+      }
+      if(!merged&&!processed.has(i)){
+        displayRows.push(pubItems[i]);
+        processed.add(i);
+      }
+    }
+    displayRows.sort((a,b)=>b.importe-a.importe);
+    // Conteos para la cabecera azul
+    const totalLineas=displayRows.length;
+    // Sin reparos: cancelar positiva+negativa iguales (mismo anunciante+marca+|importe|)
+    const sinReparos=(()=>{
+      const posLines=displayRows.filter(it=>it.importe>0).map(it=>({...it,_used:false}));
+      const negLines=displayRows.filter(it=>it.importe<0).map(it=>({...it,_used:false}));
+      let cancelled=0;
+      negLines.forEach(neg=>{
+        if(neg._used) return;
+        const target=Math.abs(neg.importe);
+        const matchIdx=posLines.findIndex(p=>!p._used&&Math.round(p.importe*100)===Math.round(target*100)&&normalize(p.anunciante)===normalize(neg.anunciante)&&normalize(p.marca)===normalize(neg.marca));
+        if(matchIdx>=0){posLines[matchIdx]._used=true;neg._used=true;cancelled++;}
+      });
+      return totalLineas-cancelled*2;
+    })();
+    const belowCount=avgBudget!==null?displayRows.filter(it=>it.importe>0&&it.importe<avgBudget).length:0;
     html+=`<tr class="branded-pub-spacer" style="height:${topPad}px;"><td colspan="5" style="border:none;padding:0;"></td></tr>
-    <tr class="branded-pub-header"><td colspan="5" style="background:linear-gradient(90deg,#0d2340,#16345f);border-radius:8px;font-weight:700;color:#fff;padding:10px 14px;letter-spacing:.02em;">${pub} <span style="font-weight:600;color:#8fd3f4;font-size:12px;">· ${pubItems.length} línea${pubItems.length===1?'':'s'} · ${formatEUR(pubTotal)}</span>${avgBudget!==null?` <span style="font-weight:600;color:#c9d6e8;font-size:11.5px;">· Presupuesto medio: ${formatEUR(avgBudget)} (${belowCount} por debajo)</span>`:''}</td></tr>`;
-    pubItems.forEach(it=>{
+    <tr class="branded-pub-header"><td colspan="5" style="background:linear-gradient(90deg,#0d2340,#16345f);border-radius:8px;font-weight:700;color:#fff;padding:10px 14px;letter-spacing:.02em;">${pub} <span style="font-weight:600;color:#8fd3f4;font-size:12px;">\u00b7 ${totalLineas} l\u00ednea${totalLineas===1?'':'s'} \u00b7 ${sinReparos} sin reparos \u00b7 ${formatEUR(pubTotal)}</span>${avgBudget!==null?` <span style="font-weight:600;color:#c9d6e8;font-size:11.5px;">\u00b7 Presupuesto medio: ${formatEUR(avgBudget)} (${belowCount} por debajo)</span>`:''}</td></tr>`;
+    displayRows.forEach(it=>{
       const belowBudget=avgBudget!==null&&it.importe>0&&it.importe<avgBudget;
       const rowBg=it.importe===0?'#fffbeb':(it.importe<0?'#fef2f2':(belowBudget?'#7a1f2b':''));
       const rowStyle=rowBg?` style="background:${rowBg};"`:'';
