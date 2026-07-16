@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Ingresos por Comercial</title>
+<title>Branded Content</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
@@ -117,6 +117,43 @@
   .product-tab-btn{padding:7px 16px;border-radius:8px;border:1px solid var(--border);background:#f4f6f9;font-size:12.5px;font-weight:700;cursor:pointer;color:var(--navy);user-select:none;transition:.15s;}
   .product-tab-btn:hover{border-color:var(--accent);}
   .product-tab-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+  #pubSummaryContainer{margin:24px 0 28px;}
+  #pubSummaryContainer .block-card-title{margin-bottom:18px;}
+  #pubSummaryContainer table.mini-canal-table{margin-bottom:16px;table-layout:fixed;}
+  #pubSummaryContainer table.mini-canal-table th:first-child,
+  #pubSummaryContainer table.mini-canal-table td:first-child{width:40%;}
+  #pubSummaryContainer table.mini-canal-table th:not(:first-child),
+  #pubSummaryContainer table.mini-canal-table td:not(:first-child){width:20%;text-align:center;}
+
+  /* ── Desglose por sector dentro de BC Reales por Publicación ── */
+  .pub-toggle{display:inline-block;width:11px;font-size:10px;margin-right:8px;color:var(--accent);cursor:pointer;transition:transform .15s;user-select:none;}
+  .pub-toggle.open{transform:rotate(90deg);}
+  tr.pub-row td:first-child{cursor:pointer;}
+  tr.pub-sector-row td{background:#eaf6ff;font-size:11.5px;}
+  tr.pub-sector-row td:first-child{padding-left:34px !important;font-weight:400;color:var(--text);}
+  tr.pub-sector-row:hover td{background:#dcefff;}
+  /* Modo foco: al desplegar un sector, todo lo demás pasa a gris para no distraer */
+  body.pub-focus-mode header,
+  body.pub-focus-mode #monthFilter,
+  body.pub-focus-mode .toolbar,
+  body.pub-focus-mode #tabBar,
+  body.pub-focus-mode #blocksContainer,
+  body.pub-focus-mode #digitalSummaryBlock,
+  body.pub-focus-mode #sectorBlock>.block-card-title,
+  body.pub-focus-mode #sectorBlock>.product-tabs,
+  body.pub-focus-mode #sectorBlock>.sector-filters-label,
+  body.pub-focus-mode #sectorBlock>.sector-btns,
+  body.pub-focus-mode #sectorBlock>hr,
+  body.pub-focus-mode #brandedContainer{
+    opacity:.32;filter:grayscale(1);pointer-events:none;transition:opacity .2s ease,filter .2s ease;
+  }
+  body.pub-focus-mode #pubSummaryContainer table.mini-canal-table tbody tr.pub-row-dim,
+  body.pub-focus-mode #pubSummaryContainer table.mini-canal-table tbody tr.pub-total-row{
+    opacity:.4;filter:grayscale(1);transition:opacity .2s ease,filter .2s ease;
+  }
+  body.pub-focus-mode #pubSummaryContainer table.mini-canal-table tbody tr.pub-row-active td{
+    background:#dceeff;font-weight:700;
+  }
   table.sector-table thead th:first-child{text-align:left;}
   table.sector-table tbody tr.sector-anun-row{cursor:pointer;}
   table.sector-table tbody tr.sector-anun-row.dimmed td{color:var(--muted) !important;opacity:.5;}
@@ -206,7 +243,9 @@
     <div class="product-tabs" id="productTabs"></div>
     <div class="sector-filters-label">Elige un sector si quieres ver el desglose solo de ese sector:</div>
     <div class="sector-btns" id="sectorBtns"></div>
-    <hr style="border:none;border-top:1px solid var(--border);margin:18px 0 0;">
+    <hr style="border:none;border-top:1px solid var(--border);margin:22px 0 0;">
+
+    <div id="pubSummaryContainer"></div>
 
     <div id="brandedContainer">
       <div class="sector-empty-hint">Cargando datos de Branded Content...</div>
@@ -258,6 +297,8 @@ const AVG_BUDGET_RULES = [
   {test:s=>s.includes('nuevoestilo'),                       branded:5250,  video:7600},
   {test:s=>s.includes('runnersworld')||s.includes('runnerworld'), branded:5250, video:7600},
   {test:s=>s.includes('womenshealth'),                      branded:6000,  video:8400},
+  {test:s=>s.includes('gourmet'),                           branded:6000,  video:8400},
+  {test:s=>s.includes('travel'),                            branded:6000,  video:8400},
   {test:s=>s.includes('elle'),                              branded:9000,  video:12000}
 ];
 function getAvgBudget(productId,publicacionRaw){
@@ -293,6 +334,7 @@ const HEADER_ALIASES = {
   marca:       ['marca'],
   comercial:   ['comercial'],
   publicacion: ['publicación','publicacion','publicaciones','cabecera','revista','site','medio'],
+  detalle:     ['detalle'],
   producto:    ['producto','productos'],
   familia:     ['familia','familias']
 };
@@ -443,6 +485,7 @@ function processWorkbook(data,canal,filename){
   const colPublicacion=findColIndex(hr,HEADER_ALIASES.publicacion);
   const colProducto=findColIndex(hr,HEADER_ALIASES.producto);
   const colFamilia=findColIndex(hr,HEADER_ALIASES.familia);
+  const colDetalle=findColIndex(hr,HEADER_ALIASES.detalle);
   if(colAnio===-1||colImporte===-1){markCanalPending(canal);return;}
 
   DATA=DATA.filter(d=>d.canal!==canal);
@@ -461,6 +504,7 @@ function processWorkbook(data,canal,filename){
     const publicacion=colPublicacion!==-1?String(row[colPublicacion]||'').trim():'';
     const producto=colProducto!==-1?String(row[colProducto]||'').trim():'';
     const familia=colFamilia!==-1?String(row[colFamilia]||'').trim():'';
+    const detalleRaw=colDetalle!==-1?String(row[colDetalle]||'').trim():'';
     if(isNaN(anio)||anio<2000||anio>2100) continue;
     const claseLetra=normalize(rawClase).charAt(0);
     let team;
@@ -474,7 +518,7 @@ function processWorkbook(data,canal,filename){
       else team='Madrid';
     }
     if(mes!==null) hasMesColumn=true;
-    DATA.push({sector,team,anio,mes,importe,canal,anunciante,marca,comercial,publicacion,producto,familia,claseOrden:rawClase||'(vacío)'});
+    DATA.push({sector,team,anio,mes,importe,canal,anunciante,marca,comercial,publicacion,detalle:detalleRaw,producto,familia,claseOrden:rawClase||'(vacío)'});
   }
   rebuildYears();
   markCanalLoaded(canal,filename,fecha);
@@ -676,6 +720,162 @@ function renderDigitalSummary(lastYear,monthsFilter,zonaSectorFilter){
   document.getElementById('digitalSummaryContainer').innerHTML=summaryHtml;
 }
 
+// ---- BLOQUE: BC REALES POR PUBLICACIÓN (reparos + presupuesto + media) ----
+// Un "reparo" es una línea negativa que cancela una línea positiva del mismo
+// anunciante+marca+publicación SOLO si el importe es exactamente igual (en valor
+// absoluto). Las negativas sin una positiva de importe exacto no cancelan nada
+// (quedan "sueltas" y no restan). Cada positiva que sobrevive cuenta como 1 BC real.
+function computeRealPubStats(pubItems,activeProduct,pub){
+  const groups=new Map();
+  pubItems.forEach(it=>{
+    const key=normalize(it.anunciante)+'|||'+normalize(it.marca);
+    if(!groups.has(key)) groups.set(key,{pos:[],neg:[]});
+    if(it.importe>0) groups.get(key).pos.push(it.importe);
+    else if(it.importe<0) groups.get(key).neg.push(it.importe);
+  });
+  const realValues=[];
+  groups.forEach(g=>{
+    const pos=g.pos.slice();
+    g.neg.forEach(nVal=>{
+      const target=Math.abs(nVal);
+      // Solo cancela si hay una positiva con el importe EXACTAMENTE igual (redondeado a céntimos).
+      // Si no hay coincidencia exacta, esta negativa queda suelta y no resta nada.
+      const exactIdx=pos.findIndex(p=>Math.round(p*100)===Math.round(target*100));
+      if(exactIdx>=0) pos.splice(exactIdx,1); // esta positiva queda cancelada por el reparo
+    });
+    realValues.push(...pos);
+  });
+  const realCount=realValues.length;
+  const media=realCount>0?realValues.reduce((a,b)=>a+b,0)/realCount:null;
+  const belowMedia=media!==null?realValues.filter(v=>v<media).length:0;
+  const presupuesto=getAvgBudget(activeProduct.id,pub);
+  const belowPresupuesto=presupuesto!==null?realValues.filter(v=>v<presupuesto).length:null;
+  return {realCount,media,belowMedia,presupuesto,belowPresupuesto};
+}
+
+// Estado del bloque "BC Reales por Publicación", para poder desplegar el
+// desglose por sector de una publicación sin tener que recalcular todo desde cero.
+let pubSummaryState=null;
+
+function computeSectorBreakdownForPub(pub){
+  const items=(pubSummaryState&&pubSummaryState.byPub.get(pub))||[];
+  const bySector=new Map();
+  items.forEach(it=>{
+    const sec=it.sector||'(sin sector)';
+    if(!bySector.has(sec)) bySector.set(sec,[]);
+    bySector.get(sec).push(it);
+  });
+  const sectorNames=Array.from(bySector.keys()).sort((a,b)=>a.localeCompare(b,'es'));
+  return sectorNames.map(sec=>({sector:sec,...computeRealPubStats(bySector.get(sec),pubSummaryState.activeProduct,pub)}));
+}
+
+function togglePubSector(idx){
+  if(!pubSummaryState) return;
+  pubSummaryState.expandedIdx=(pubSummaryState.expandedIdx===idx)?null:idx;
+  document.body.classList.toggle('pub-focus-mode',pubSummaryState.expandedIdx!==null);
+  renderPubSummaryTable();
+}
+
+function renderPubSummaryTable(){
+  const container=document.getElementById('pubSummaryContainer');
+  if(!container||!pubSummaryState) return;
+  const {rows,activeProduct,lastYear,expandedIdx}=pubSummaryState;
+
+  const totalReal=rows.reduce((s,r)=>s+r.realCount,0);
+  const presupuestoRows=rows.filter(r=>r.belowPresupuesto!==null);
+  const totalBelowPresupuesto=presupuestoRows.length>0?presupuestoRows.reduce((s,r)=>s+r.belowPresupuesto,0):null;
+  const totalBelowMedia=rows.reduce((s,r)=>s+r.belowMedia,0);
+
+  let html=`<div class="block-card-title">📈 BC Reales por Publicación · ${activeProduct.label} ${lastYear}</div>
+    <table class="mini-canal-table">
+      <thead><tr>
+        <th style="text-align:left;">Publicación</th>
+        <th>BC Reales</th>
+        <th>Por debajo del presupuesto</th>
+        <th>Por debajo de la media</th>
+      </tr></thead>
+      <tbody>
+        <tr class="pub-total-row" style="background:#eef6ff;">
+          <td style="text-align:left;font-weight:800;">Total Hearst</td>
+          <td style="font-weight:800;">${totalReal}</td>
+          <td style="font-weight:800;">${totalBelowPresupuesto===null?'—':totalBelowPresupuesto}</td>
+          <td style="font-weight:800;">${totalBelowMedia}</td>
+        </tr>`;
+
+  rows.forEach((r,idx)=>{
+    const isActive=expandedIdx===idx;
+    const dimCls=(expandedIdx!==null&&!isActive)?' pub-row-dim':'';
+    const activeCls=isActive?' pub-row-active':'';
+    html+=`<tr class="pub-row${dimCls}${activeCls}" onclick="togglePubSector(${idx})">
+      <td style="text-align:left;"><span class="pub-toggle${isActive?' open':''}">▶</span>${r.pub}</td>
+      <td>${r.realCount}</td>
+      <td>${r.belowPresupuesto===null?'—':r.belowPresupuesto}</td>
+      <td>${r.belowMedia}</td>
+    </tr>`;
+    if(isActive){
+      const secRows=computeSectorBreakdownForPub(r.pub);
+      if(secRows.length===0){
+        html+=`<tr class="pub-sector-row"><td colspan="4" style="font-style:italic;color:var(--muted);">Sin desglose por sector para esta publicación.</td></tr>`;
+      }else{
+        secRows.forEach(sr=>{
+          html+=`<tr class="pub-sector-row">
+            <td>🏷️ ${sr.sector}</td>
+            <td>${sr.realCount}</td>
+            <td>${sr.belowPresupuesto===null?'—':sr.belowPresupuesto}</td>
+            <td>${sr.belowMedia}</td>
+          </tr>`;
+        });
+      }
+    }
+  });
+
+  html+=`</tbody></table>
+    <div style="margin-top:14px;font-size:11px;color:#94a3b8;">BC Reales = líneas positivas tras aplicar reparos (una línea negativa solo cancela una positiva del mismo anunciante+marca+publicación con el importe EXACTAMENTE igual; las negativas sueltas sin una positiva exacta que cancelar no restan). Media = promedio de los importes reales de esa publicación en el periodo filtrado. Pincha en una publicación para ver su desglose por sector.</div>`;
+
+  container.innerHTML=html;
+}
+
+function renderPubSummary(items,activeProduct,lastYear){
+  const container=document.getElementById('pubSummaryContainer');
+  if(!container) return;
+  document.body.classList.remove('pub-focus-mode');
+  if(!items||items.length===0){ container.innerHTML=''; pubSummaryState=null; return; }
+
+  const byPub=new Map();
+  items.forEach(it=>{
+    if(!byPub.has(it.publicacion)) byPub.set(it.publicacion,[]);
+    byPub.get(it.publicacion).push(it);
+  });
+  // ── Elle: detectar pub real y forzar gourmet/travel ──
+  const ELLE_GOURMET='www.elle.com/es/gourmet';
+  const ELLE_TRAVEL='www.elle.com/es/travel';
+  const elleRealPub=Array.from(byPub.keys()).find(k=>{
+    const s=slugPub(k);
+    return s.includes('elle')&&!s.includes('elledecor')&&k!==ELLE_GOURMET&&k!==ELLE_TRAVEL;
+  })||null;
+  if(elleRealPub){
+    const elleItems=byPub.get(elleRealPub)||[];
+    const gourmetItems=elleItems.filter(it=>it.detalle.toLowerCase().includes('gourmet'));
+    const travelItems=elleItems.filter(it=>it.detalle.toLowerCase().includes('viajes')||it.detalle.toLowerCase().includes('travel'));
+    const elleRestItems=elleItems.filter(it=>!it.detalle.toLowerCase().includes('gourmet')&&!it.detalle.toLowerCase().includes('viajes')&&!it.detalle.toLowerCase().includes('travel'));
+    byPub.set(elleRealPub, elleRestItems);
+    byPub.set(ELLE_GOURMET, gourmetItems);
+    byPub.set(ELLE_TRAVEL, travelItems);
+  }
+  // ── Ordenar: alfabético, gourmet+travel justo debajo de elle ─
+  const allKeys=Array.from(byPub.keys());
+  const elleVirtuals=[ELLE_GOURMET,ELLE_TRAVEL];
+  const otherKeys=allKeys.filter(k=>!elleVirtuals.includes(k)).sort((a,b)=>a.localeCompare(b,'es'));
+  const elleIdxS=elleRealPub?otherKeys.indexOf(elleRealPub):-1;
+  const pubNames=elleIdxS!==-1
+    ?[...otherKeys.slice(0,elleIdxS+1),ELLE_GOURMET,ELLE_TRAVEL,...otherKeys.slice(elleIdxS+1)]
+    :otherKeys;
+  const rows=pubNames.map(pub=>({pub,...computeRealPubStats(byPub.get(pub)||[],activeProduct,pub)}));
+
+  pubSummaryState={byPub,rows,activeProduct,lastYear,expandedIdx:null};
+  renderPubSummaryTable();
+}
+
 function renderBrandedContent(){
   const container=document.getElementById('brandedContainer');
   if(!container) return;
@@ -700,6 +900,7 @@ function renderBrandedContent(){
   if(rows.length===0){
     container.innerHTML=`<div class="sector-empty-hint">Sin datos de ${productLabel} para el periodo seleccionado.</div>`;
     renderDigitalSummary(lastYear,monthsFilter,zonaSectorFilter);
+    renderPubSummary([],activeProduct,lastYear);
     const pb=document.getElementById('brandedPrintBtn'); if(pb) pb.style.display='none';
     return;
   }
@@ -710,6 +911,7 @@ function renderBrandedContent(){
     marca:d.marca||'',
     sector:d.sector||'',
     publicacion:d.publicacion||'(sin publicación)',
+    detalle:d.detalle||'',
     comercial:d.comercial||'',
     importe:d.importe
   }));
@@ -717,6 +919,7 @@ function renderBrandedContent(){
   if(items.length===0){
     container.innerHTML=`<div class="sector-empty-hint">Sin datos de ${productLabel} para el periodo seleccionado.</div>`;
     renderDigitalSummary(lastYear,monthsFilter,zonaSectorFilter);
+    renderPubSummary([],activeProduct,lastYear);
     const pb=document.getElementById('brandedPrintBtn'); if(pb) pb.style.display='none';
     return;
   }
@@ -727,8 +930,9 @@ function renderBrandedContent(){
   const zeroCount=items.filter(it=>it.importe===0).length;
 
   renderDigitalSummary(lastYear,monthsFilter,zonaSectorFilter);
+  renderPubSummary(items,activeProduct,lastYear);
 
-  let html=`<div style="margin:0 0 18px;padding:16px 20px;background:linear-gradient(90deg,#f0f9ff,#f8fafc);border:1px solid #dbeafe;border-radius:12px;">
+  let html=`<div style="margin:0 0 28px;padding:16px 20px;background:linear-gradient(90deg,#f0f9ff,#f8fafc);border:1px solid #dbeafe;border-radius:12px;">
     <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
       <span style="font-size:13px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.03em;">Total ${productLabel} ${lastYear}</span>
       <span style="font-size:24px;font-weight:800;color:#0d2340;">${formatEUR(total)}</span>
@@ -757,7 +961,30 @@ function renderBrandedContent(){
     if(!byPub.has(it.publicacion)) byPub.set(it.publicacion,[]);
     byPub.get(it.publicacion).push(it);
   });
-  const pubNames=Array.from(byPub.keys()).sort((a,b)=>a.localeCompare(b,'es'));
+  // ── Elle: detectar pub real y forzar gourmet/travel ──
+  const ELLE_GOURMET_B='www.elle.com/es/gourmet';
+  const ELLE_TRAVEL_B='www.elle.com/es/travel';
+  const elleRealPubB=Array.from(byPub.keys()).find(k=>{
+    const s=slugPub(k);
+    return s.includes('elle')&&!s.includes('elledecor')&&k!==ELLE_GOURMET_B&&k!==ELLE_TRAVEL_B;
+  })||null;
+  if(elleRealPubB){
+    const elleItemsB=byPub.get(elleRealPubB)||[];
+    const gourmetItemsB=elleItemsB.filter(it=>it.detalle.toLowerCase().includes('gourmet'));
+    const travelItemsB=elleItemsB.filter(it=>it.detalle.toLowerCase().includes('viajes')||it.detalle.toLowerCase().includes('travel'));
+    const elleRestItemsB=elleItemsB.filter(it=>!it.detalle.toLowerCase().includes('gourmet')&&!it.detalle.toLowerCase().includes('viajes')&&!it.detalle.toLowerCase().includes('travel'));
+    byPub.set(elleRealPubB, elleRestItemsB);
+    byPub.set(ELLE_GOURMET_B, gourmetItemsB);
+    byPub.set(ELLE_TRAVEL_B, travelItemsB);
+  }
+  // ── Ordenar: alfabético, gourmet+travel justo debajo de elle ─
+  const allKeysB=Array.from(byPub.keys());
+  const elleVirtualsB=[ELLE_GOURMET_B,ELLE_TRAVEL_B];
+  const otherKeysB=allKeysB.filter(k=>!elleVirtualsB.includes(k)).sort((a,b)=>a.localeCompare(b,'es'));
+  const elleIdxB=elleRealPubB?otherKeysB.indexOf(elleRealPubB):-1;
+  const pubNames=elleIdxB!==-1
+    ?[...otherKeysB.slice(0,elleIdxB+1),ELLE_GOURMET_B,ELLE_TRAVEL_B,...otherKeysB.slice(elleIdxB+1)]
+    :otherKeysB;
 
   pubNames.forEach((pub,pubIdx)=>{
     const pubItems=byPub.get(pub).sort((a,b)=>b.importe-a.importe);
