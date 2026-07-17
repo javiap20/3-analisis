@@ -1,0 +1,1220 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Análisis Ingreso por Publicación</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --navy:#0d2340;--navy-light:#16345f;--accent:#00a3e0;
+    --green:#1f9d55;--red:#d64545;--bg:#f4f6f9;
+    --border:#e2e6ec;--text:#1f2937;--muted:#6b7280;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Segoe UI',Arial,sans-serif;font-size:13px;background:var(--bg);color:var(--text);}
+  header{background:linear-gradient(90deg,var(--navy),var(--navy-light));color:#fff;padding:20px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+  header h1{margin:0;font-size:20px;font-weight:600;letter-spacing:.3px;}
+  header .subtitle{font-size:13px;color:#c9d6e8;margin-top:4px;}
+  .fechas-wrap{display:flex;gap:16px;flex-wrap:wrap;margin-top:4px;}
+  .fecha-canal{font-size:11px;color:#c9d6e8;}
+  .fecha-canal span{color:#fff;font-weight:600;}
+  .upload-wrap{display:flex;flex-direction:column;align-items:flex-start;gap:8px;}
+  .up-multi-sub{font-size:12px;color:#c9d6e8;}
+  .up-cards{display:flex;gap:12px;flex-wrap:wrap;}
+  .up-card{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:8px 14px;cursor:pointer;transition:.15s;display:flex;align-items:center;gap:8px;min-width:160px;}
+  .up-card:hover{background:rgba(255,255,255,0.15);}
+  .up-card.loaded{background:rgba(31,157,85,0.25);border-color:#1f9d55;}
+  .up-icon{font-size:16px;}
+  .up-canal-name{font-size:13px;font-weight:700;color:#fff;}
+  .up-mini-status{font-size:11px;color:#c9d6e8;margin-left:auto;}
+  .up-card.loaded .up-mini-status{color:#2ecc71;font-weight:600;}
+  main{padding:24px 32px 60px;max-width:1400px;margin:0 auto;}
+  .month-filter{display:none;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;background:#fff;border:1px solid var(--border);border-radius:8px;padding:9px 12px;}
+  .mf-label{font-size:12.5px;font-weight:600;color:var(--muted);margin-right:2px;white-space:nowrap;}
+  .mf-chips{display:flex;gap:4px;flex-wrap:wrap;}
+  .mf-chip{padding:5px 10px;border-radius:14px;border:1px solid var(--border);background:#f4f6f9;font-size:12px;cursor:pointer;color:var(--text);user-select:none;transition:.15s;}
+  .mf-chip.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
+  .mf-chip:hover{border-color:var(--accent);}
+  .mf-actions{display:flex;gap:6px;margin-left:auto;}
+  .mf-btn{padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:#fff;font-size:12px;cursor:pointer;color:var(--navy);font-weight:600;white-space:nowrap;}
+  .mf-btn:hover{background:#eef2f7;}
+  .mf-btn.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+  .pub-filter{display:none;flex-direction:column;gap:4px;margin-bottom:14px;background:#fff;border:1px solid var(--border);border-radius:8px;padding:9px 12px;}
+  .pub-filter-head{display:flex;align-items:center;gap:10px;}
+  .pub-group{display:flex;flex-direction:column;gap:4px;padding-top:14px;}
+  .pub-group:first-child{padding-top:0;}
+  .pub-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .pub-canal-label{font-size:12px;font-weight:700;color:var(--navy);white-space:nowrap;letter-spacing:.3px;text-transform:uppercase;}
+  .pub-row .mf-chip{font-size:9px;padding:3px 8px;}
+  .empty-state{background:#fff;border:1px dashed var(--border);border-radius:10px;padding:60px 20px;text-align:center;color:var(--muted);}
+  .empty-state b{color:var(--text);}
+  .charts-wrap{display:flex;flex-direction:column;gap:28px;}
+  .chart-block{background:#fff;border:1px solid var(--border);border-radius:10px;padding:18px 20px 14px;}
+  .chart-title{font-size:13px;font-weight:700;color:var(--navy);margin-bottom:14px;letter-spacing:.2px;}
+  .chart-subtitle{font-size:11px;color:var(--muted);font-weight:400;margin-left:8px;}
+  .chart-svg-wrap{width:100%;overflow-x:auto;}
+  .chart-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;}
+  .legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text);}
+  .legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+  .no-data-msg{font-size:12px;color:var(--muted);padding:20px 0;text-align:center;}
+  .ing-table-wrap{overflow-x:auto;margin-top:4px;}
+  .ing-table{width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed;}
+  .ing-table th{background:var(--navy);color:#fff;padding:6px 10px;text-align:center;font-weight:600;white-space:nowrap;}
+  .ing-table th:first-child{text-align:left;min-width:90px;}
+  .ing-table td{padding:5px 10px;text-align:center;border-bottom:1px solid var(--border);white-space:nowrap;}
+  .ing-table td:first-child{text-align:left;font-weight:600;color:var(--navy);}
+  .ing-table .total-row td{font-weight:700;background:#f0f4f8;border-top:2px solid var(--border);border-bottom:none;}
+  .ing-table tr:not(.total-row):not(.pub-sep):hover td{background:#f8fafc;}
+  .ing-table .pub-sep td{background:var(--bg);color:var(--muted);font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:4px 10px;border-bottom:1px solid var(--border);}
+  .ing-table .zero{color:#ccc;}
+  .ing-table .total-col{background:#e8f4fd;font-weight:700;}
+  .pub-mode-toggle{display:inline-flex;gap:4px;margin-left:12px;vertical-align:middle;text-transform:none;letter-spacing:0;}
+  .pmt-btn{font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;border:1px solid var(--border);background:#fff;color:var(--muted);cursor:pointer;}
+  .pmt-btn.active{background:var(--navy);border-color:var(--navy);color:#fff;}
+  .pmt-btn:hover{border-color:var(--accent);}
+  .rank-cols{display:flex;gap:24px;flex-wrap:wrap;}
+  .rank-col{flex:1;min-width:220px;}
+  .rank-col-title{font-size:12px;font-weight:700;margin-bottom:8px;letter-spacing:.2px;}
+  .rank-col-best{color:var(--green);}
+  .rank-col-worst{color:var(--red);}
+  .rank-item{display:flex;align-items:center;gap:10px;padding:6px 10px;border-bottom:1px solid var(--border);font-size:12px;}
+  .rank-item:last-child{border-bottom:none;}
+  .rank-pos{width:16px;height:16px;border-radius:50%;background:var(--bg);color:var(--muted);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .rank-month{flex:1;font-weight:600;color:var(--text);text-transform:capitalize;}
+  .rank-val{font-weight:700;color:var(--navy);}
+  .rank-note{font-size:10.5px;color:var(--muted);margin-top:12px;font-style:italic;}
+  .anun-table td:first-child{font-weight:600;color:var(--navy);white-space:normal;}
+  .anun-mark{color:var(--accent);font-size:13px;font-weight:700;}
+  .anun-amt{color:var(--navy);font-size:11px;font-weight:600;}
+  .anun-table td{height:26px;box-sizing:border-box;line-height:16px;}
+  .anun-total-row td{background:#fff3d6;font-weight:700;color:var(--navy);border-top:2px solid #f0c15c;}
+  .anun-total-row td:first-child{font-weight:700;}
+  .anun-month-boxes{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+  .anun-month-box{background:#eef4fb;border:1px solid var(--border);border-radius:8px;padding:8px 4px;text-align:center;flex:1;min-width:58px;}
+  .amb-month{font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px;}
+  .amb-count{font-size:14px;font-weight:700;color:var(--navy);}
+  .amb-marcas{font-size:10.5px;font-weight:600;color:var(--accent);margin-left:2px;}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Análisis Ingreso por Publicación</h1>
+    <div class="subtitle">Carga el Excel para ver el desglose por publicación</div>
+    <div class="fechas-wrap" id="fechasWrap" style="display:none"></div>
+  </div>
+  <div class="upload-wrap">
+    <div class="up-multi-sub">Cargando automáticamente los Excel desde SharePoint…</div>
+    <div class="up-cards">
+      <div class="up-card" id="up-card-Digital" onclick="document.getElementById('fileDigital').click()">
+        <span class="up-icon">💻</span><span class="up-canal-name">Digital</span>
+        <div class="up-mini-status" id="up-status-Digital">Buscando en SharePoint…</div>
+        <input type="file" id="fileDigital" accept=".xlsx,.xls" style="display:none" onchange="onFileInputCanal(this,'Digital')">
+      </div>
+      <div class="up-card" id="up-card-Print" onclick="document.getElementById('filePrint').click()">
+        <span class="up-icon">📰</span><span class="up-canal-name">Print</span>
+        <div class="up-mini-status" id="up-status-Print">Buscando en SharePoint…</div>
+        <input type="file" id="filePrint" accept=".xlsx,.xls" style="display:none" onchange="onFileInputCanal(this,'Print')">
+      </div>
+      <div class="up-card" id="up-card-Eventos" onclick="document.getElementById('fileEventos').click()">
+        <span class="up-icon">🎤</span><span class="up-canal-name">Eventos</span>
+        <div class="up-mini-status" id="up-status-Eventos">Buscando en SharePoint…</div>
+        <input type="file" id="fileEventos" accept=".xlsx,.xls" style="display:none" onchange="onFileInputCanal(this,'Eventos')">
+      </div>
+      <div class="up-card" id="up-card-Programatica" onclick="document.getElementById('fileProgramatica').click()">
+        <span class="up-icon">📊</span><span class="up-canal-name">Programática</span>
+        <div class="up-mini-status" id="up-status-Programatica">Buscando en SharePoint…</div>
+        <input type="file" id="fileProgramatica" accept=".xlsx,.xls" style="display:none" onchange="onFileInputCanal(this,'Programatica')">
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div id="yearFilter" class="month-filter">
+    <span class="mf-label">Años:</span>
+    <div class="mf-chips" id="yfChips"></div>
+    <div class="mf-actions">
+      <button class="mf-btn" onclick="setYearMode('none')">Ninguno</button>
+      <button class="mf-btn active" id="yfAll" onclick="setYearMode('all')">Todos</button>
+    </div>
+  </div>
+  <div id="monthFilter" class="month-filter">
+    <span class="mf-label">Meses:</span>
+    <div class="mf-chips" id="mfChips"></div>
+    <div class="mf-actions">
+      <button class="mf-btn" id="mfNone" onclick="setMonthMode('none')">Ninguno</button>
+      <button class="mf-btn" id="mfClosed" onclick="setMonthMode('closed')">Cerrados</button>
+      <button class="mf-btn active" id="mfAll" onclick="setMonthMode('all')">Todos</button>
+    </div>
+  </div>
+  <div id="pubFilter" class="pub-filter">
+    <div class="pub-filter-head">
+      <span class="mf-label">Publicaciones:</span>
+      <div class="mf-actions">
+        <button class="mf-btn" onclick="setAllPubs(false)">Ninguno</button>
+        <button class="mf-btn active" onclick="setAllPubs(true)">Todos</button>
+      </div>
+    </div>
+    <div id="pubGroups"></div>
+  </div>
+  <div id="output">
+    <div class="empty-state"><p>&#128202; <b>Sin datos</b></p><p>Sube el Excel de ventas usando las tarjetas de arriba.</p></div>
+  </div>
+</main>
+
+<script>
+let DATA = [];
+let DATA_PROG = [];
+let YEARS = [];
+let hasMesColumn = false;
+let selectedMonths = new Set();
+let selectedYears = new Set();
+let selectedPubs = {}; // { Digital: Set(['Elle','Elle Gourmet','Elle Travel','Cosmopolitan',...]), Print: Set(...), Eventos: Set(...) }
+let pubDataMode = {}; // { [pubName]: 'real' | 'cooked' } — solo relevante para publicaciones de Print con "número doble" desplazado
+let PRINT_COOK_MAP = {};       // pubName -> Map("anio-mes" -> mesDestino)
+let PRINT_COOK_ELIGIBLE = new Set(); // pubs de Print con al menos un desfase real detectado (solo esas muestran el toggle)
+let anuncianteYears = new Set(); // años seleccionados para el bloque de Top 25 anunciantes (por defecto ninguno)
+let anuncianteViewMode = 'presencia'; // 'presencia' | 'ingreso' — qué muestra la tabla del Top 25 anunciantes
+const CANAL_FECHAS = {};
+
+const EXCEL_URLS = {
+  Digital:     'https://hearstspain-my.sharepoint.com/personal/japaricio_hearst_es/_layouts/15/download.aspx?share=IQBtUVlYDjlRRoCaM7gsBE1eATJ8miXAVtnTs6Qcuioee-Y',
+  Print:       'https://hearstspain-my.sharepoint.com/personal/japaricio_hearst_es/_layouts/15/download.aspx?share=IQCgA4a20KbOTIY3RsToUyewAROi0viVXnYcoXICS4M0cNU',
+  Eventos:     'https://hearstspain-my.sharepoint.com/personal/japaricio_hearst_es/_layouts/15/download.aspx?share=IQDZNkSJLhXFToC-uOPwQt-KAcAnft0wGr7bEwH4pJhzMoU',
+  Programatica:'https://hearstspain-my.sharepoint.com/personal/japaricio_hearst_es/_layouts/15/download.aspx?share=IQBRiKDRGWyhSLPu93vPFOLmAWX_tVsvzvinkrrg8Iym2qE'
+};
+
+const MES_ABBR    = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const MES_NOMBRES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+const HEADER_ALIASES = {
+  area:        ['áreas','areas','área','area','equipo','team'],
+  claseOrden:  ['clase de orden','clase orden','claseorden','clase_orden','order class','order type'],
+  anio:        ['año inserción','ano insercion','año insercion','ano inserción','año'],
+  mes:         ['mes inserción','mes insercion','mes'],
+  importe:     ['imp.neto a comisionar','imp neto a comisionar','importe neto a comisionar','imp.neto comisionar'],
+  importeAnt:  ['imp.neto ant.','imp neto ant','imp.neto ant','importe neto ant'],
+  sector:      ['sector'],
+  anunciante:  ['anunciante'],
+  marca:       ['marca'],
+  comercial:   ['comercial'],
+  detalle:     ['detalle'],
+  publicacion: ['publicación','publicacion']
+};
+
+// Elle se reparte en tres publicaciones según la URL de la columna Detalle:
+// contiene "gourmet" -> Elle Gourmet; contiene "viajes"/"travel" -> Elle Travel;
+// cualquier otro caso (o vacío) de la publicación Elle -> Elle (revista general).
+// En Digital, la columna Publicación trae dominios (www.elle.com/es/, cosmopolitan.com...);
+// se limpian prefijos/sufijos de URL para que el filtro sea legible.
+function cleanDigitalPub(raw){
+  let s=String(raw||'').trim();
+  if(!s) return '';
+  s=s.replace(/^https?:\/\//i,'');
+  s=s.replace(/^www\./i,'');
+  s=s.replace(/\/+$/,'');
+  s=s.replace(/\/es$/i,'');
+  s=s.replace(/\.(com|es)$/i,'');
+  s=s.replace(/\/+$/,'');
+  s=s.trim();
+  if(s.toLowerCase()==='womenshealthmag') return 'Womenshealth';
+  return s;
+}
+function titleCase(s){
+  if(!s) return s;
+  const lower=s.toLowerCase();
+  return lower.charAt(0).toUpperCase()+lower.slice(1);
+}
+function getPublicacion(d){
+  // Para Digital-Elle el split viene resuelto en d.pubLabel (asignado en processWorkbook)
+  if(d.pubLabel) return d.pubLabel;
+  if(d.canal==='Digital'){
+    const clean=cleanDigitalPub(d.publicacion);
+    return clean?titleCase(clean):'SIN PUBLICACIÓN';
+  }
+  // Print y Eventos: forzamos "Fotogramas & Video" (o variantes) a mostrarse solo como "Fotogramas"
+  const raw=d.publicacion||'SIN PUBLICACIÓN';
+  if(normalize(raw).includes('fotogramas')) return 'FOTOGRAMAS';
+  return raw;
+}
+
+function normalize(str){
+  return String(str||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+}
+
+// ── "NÚMERO DOBLE" EN PRINT ──
+// Algunas revistas dejaron de salir todos los meses y pasaron a alternar (un mes sí, un mes no).
+// Además, el mes exacto de venta puede desplazarse un mes según el año (ej: feb/abr/jun un año,
+// mar/may/jun otro). "Dato Cocinado" reubica ese importe desplazado en el mes habitual del resto
+// de años, para poder comparar. Solo se activa cuando de verdad hay un desfase detectado.
+function analyzePrintPatterns(){
+  PRINT_COOK_MAP = {};
+  PRINT_COOK_ELIGIBLE = new Set();
+  const printRows = DATA.filter(d=>d.canal==='Print' && d.mes);
+  const pubs = Array.from(new Set(printRows.map(getPublicacion)));
+
+  pubs.forEach(pub=>{
+    const rows = printRows.filter(d=>getPublicacion(d)===pub);
+    const years = Array.from(new Set(rows.map(d=>d.anio))).sort((a,b)=>a-b);
+    if(years.length<2) return; // hace falta comparar entre años
+
+    const byYearMonth = {};
+    years.forEach(y=>{ byYearMonth[y]={}; });
+    rows.forEach(d=>{ byYearMonth[d.anio][d.mes]=(byYearMonth[d.anio][d.mes]||0)+d.importe; });
+
+    const activeByYear = {};
+    years.forEach(y=>{
+      activeByYear[y]=new Set(Object.keys(byYearMonth[y]).map(Number).filter(m=>byYearMonth[y][m]!==0));
+    });
+
+    // Meses "habituales": los que tienen venta en la mayoría de los años
+    const monthCount={}; for(let m=1;m<=12;m++) monthCount[m]=0;
+    years.forEach(y=>activeByYear[y].forEach(m=>monthCount[m]++));
+    const majority=Math.ceil(years.length/2);
+    const canonical=new Set();
+    for(let m=1;m<=12;m++){ if(monthCount[m]>=majority) canonical.add(m); }
+
+    // Solo aplica a publicaciones con patrón de número doble (aprox. cada 2 meses),
+    // no a las que salen todos los meses ni a las que casi no tienen ventas.
+    if(canonical.size<3 || canonical.size>9) return;
+
+    // Detectar desfases: venta en un mes no habitual, con el mes anterior (habitual) vacío ese año
+    const map=new Map();
+    years.forEach(y=>{
+      activeByYear[y].forEach(m=>{
+        if(canonical.has(m)) return;
+        const prev=m-1;
+        if(prev>=1 && canonical.has(prev) && !activeByYear[y].has(prev)){
+          map.set(y+'-'+m, prev);
+        }
+      });
+    });
+
+    if(map.size>0){
+      PRINT_COOK_MAP[pub]=map;
+      PRINT_COOK_ELIGIBLE.add(pub);
+    }
+  });
+}
+
+function setPubDataMode(pub, mode){
+  pubDataMode[pub]=mode;
+  render();
+}
+
+function cookToggleHtml(p){
+  if(!PRINT_COOK_ELIGIBLE.has(p)) return '';
+  const mode = pubDataMode[p]||'real';
+  const safeP = p.replace(/'/g,"\\'");
+  return `<span class="pub-mode-toggle">
+    <button class="pmt-btn${mode==='real'?' active':''}" onclick="setPubDataMode('${safeP}','real')" title="Datos tal cual vienen del Excel">Dato Real (Excel)</button>
+    <button class="pmt-btn${mode==='cooked'?' active':''}" onclick="setPubDataMode('${safeP}','cooked')" title="Meses de número doble desplazado, reubicados en el mes habitual para comparar mejor entre años">Dato Cocinado</button>
+  </span>`;
+}
+
+function findColIndex(headerRow, aliases){
+  const nh=headerRow.map(normalize);
+  for(const a of aliases){ const i=nh.indexOf(normalize(a)); if(i!==-1) return i; }
+  return -1;
+}
+function parseMonth(val){
+  if(!val) return null;
+  const n=parseInt(val,10);
+  if(!isNaN(n)&&n>=1&&n<=12) return n;
+  const norm=normalize(String(val));
+  const idx=MES_NOMBRES.findIndex(m=>norm.startsWith(normalize(m)));
+  return idx!==-1?idx+1:null;
+}
+function formatEUR(val){
+  if(val===null||val===undefined||isNaN(val)) return '-';
+  const sign=val<0?'-':'';
+  const str=Math.abs(Math.round(val)).toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+  return sign+str+'\u00A0\u20AC';
+}
+function formatPct(val){
+  if(val===null||val===undefined||!isFinite(val)) return '-';
+  return (val>=0?'+':'')+val.toFixed(1)+'%';
+}
+function monthsRangeLabel(monthsSet){
+  if(!monthsSet||monthsSet.size===0) return '';
+  const sorted=[...monthsSet].sort((a,b)=>a-b);
+  if(sorted.length===1) return MES_ABBR[sorted[0]-1];
+  return MES_ABBR[sorted[0]-1]+'-'+MES_ABBR[sorted[sorted.length-1]-1];
+}
+
+// Meses cerrados = meses anteriores al mes actual según fecha real
+function getClosedMonths(){
+  const currentMonth = new Date().getMonth() + 1; // 1=Ene, 7=Jul → cerrados=1..6
+  const closed = new Set();
+  for(let m = 1; m < currentMonth; m++) closed.add(m);
+  return closed;
+}
+
+function updateMonthBtns(mode){
+  document.getElementById('mfNone').classList.toggle('active', mode==='none');
+  document.getElementById('mfClosed').classList.toggle('active', mode==='closed');
+  document.getElementById('mfAll').classList.toggle('active', mode==='all');
+}
+
+function setMonthMode(mode){
+  const allData=[...DATA,...DATA_PROG];
+  const allMonths=new Set(allData.map(d=>d.mes).filter(m=>m!==null));
+  const sorted=Array.from(allMonths).sort((a,b)=>a-b);
+  const chips=document.getElementById('mfChips');
+
+  if(mode==='none'){
+    selectedMonths=new Set();
+  } else if(mode==='closed'){
+    selectedMonths=getClosedMonths();
+  } else if(mode==='all'){
+    selectedMonths=new Set(sorted);
+  }
+
+  chips.querySelectorAll('.mf-chip').forEach((c,i)=>{
+    c.classList.toggle('active', selectedMonths.has(sorted[i]));
+  });
+  updateMonthBtns(mode);
+  render();
+}
+
+// ---- FILTRO DE PUBLICACIONES (por canal, con Elle repartida en 3) ----
+function initPubFilter(){
+  const canales=['Digital','Print','Eventos'];
+  const icons={Digital:'💻',Print:'📰',Eventos:'🎤'};
+  const wrap=document.getElementById('pubGroups');
+  wrap.innerHTML='';
+  canales.forEach(canal=>{
+    let pubs=Array.from(new Set(DATA.filter(d=>d.canal===canal).map(getPublicacion)));
+    // "BOOK" no debe aparecer como publicación seleccionable en Print
+    if(canal==='Print') pubs=pubs.filter(p=>normalize(p)!=='book');
+    // Elle, Elle Gourmet y Elle Travel se fuerzan siempre en Digital en cuanto haya datos de ese canal
+    if(canal==='Digital'&&DATA.some(d=>d.canal==='Digital')){
+      if(!pubs.includes('Elle')) pubs.push('Elle');
+      if(!pubs.includes('Elle Gourmet')) pubs.push('Elle Gourmet');
+      if(!pubs.includes('Elle Travel')) pubs.push('Elle Travel');
+    }
+    pubs=pubs.sort((a,b)=>a.localeCompare(b,'es'));
+    if(pubs.length===0) return;
+    if(!selectedPubs[canal]) selectedPubs[canal]=new Set();
+    // publicaciones nuevas NO entran activas por defecto — el usuario las activa manualmente
+
+    // Grupo: label en línea propia + chips debajo
+    const group=document.createElement('div');
+    group.className='pub-group';
+    group.dataset.canal=canal;
+    const label=document.createElement('div');
+    label.className='pub-canal-label';
+    label.textContent=icons[canal]+' '+canal;
+    group.appendChild(label);
+    const chipsWrap=document.createElement('div');
+    chipsWrap.className='mf-chips pub-row';
+    chipsWrap.dataset.canal=canal;
+    pubs.forEach(p=>{
+      const chip=document.createElement('div');
+      chip.className='mf-chip'+(selectedPubs[canal].has(p)?' active':'');
+      chip.textContent=p;
+      chip.onclick=()=>{
+        if(selectedPubs[canal].has(p)) selectedPubs[canal].delete(p); else selectedPubs[canal].add(p);
+        chip.classList.toggle('active',selectedPubs[canal].has(p));
+        render();
+      };
+      chipsWrap.appendChild(chip);
+    });
+    group.appendChild(chipsWrap);
+    wrap.appendChild(group);
+  });
+}
+function setAllPubs(all){
+  document.querySelectorAll('#pubGroups .pub-group').forEach(group=>{
+    const canal=group.dataset.canal;
+    const chips=Array.from(group.querySelectorAll('.mf-chip'));
+    selectedPubs[canal]=all?new Set(chips.map(c=>c.textContent)):new Set();
+    chips.forEach(c=>c.classList.toggle('active',all));
+  });
+  render();
+}
+
+async function autoLoadFromServer(){
+  const canales=['Digital','Print','Eventos','Programatica'];
+  await Promise.all(canales.map(async canal=>{
+    try{
+      const res=await fetch(EXCEL_URLS[canal],{cache:'no-cache'});
+      if(!res.ok) throw new Error('No encontrado');
+      const buffer=await res.arrayBuffer();
+      processWorkbook(new Uint8Array(buffer),canal,canal.toUpperCase()+'.xlsx');
+    }catch(e){ markCanalPending(canal); }
+  }));
+}
+function markCanalLoaded(canal,filename,fecha){
+  const card=document.getElementById('up-card-'+canal);
+  const status=document.getElementById('up-status-'+canal);
+  if(card) card.classList.add('loaded');
+  if(status) status.textContent='✓ '+filename+(fecha?' · '+fecha:'');
+  updateFechasHeader();
+}
+function updateFechasHeader(){
+  const wrap=document.getElementById('fechasWrap');
+  if(!wrap) return;
+  const icons={Digital:'💻',Print:'📰',Eventos:'🎤',Programatica:'📊'};
+  const parts=['Digital','Print','Eventos','Programatica']
+    .filter(c=>CANAL_FECHAS[c])
+    .map(c=>`<div class="fecha-canal">${icons[c]} ${c}: <span>${CANAL_FECHAS[c]}</span></div>`);
+  if(parts.length>0){wrap.innerHTML=parts.join('');wrap.style.display='flex';}
+}
+function markCanalPending(canal){
+  const card=document.getElementById('up-card-'+canal);
+  const status=document.getElementById('up-status-'+canal);
+  if(card) card.classList.remove('loaded');
+  if(status) status.textContent='No disponible · pulsa para subirlo manualmente';
+}
+function onFileInputCanal(input,canal){
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>processWorkbook(new Uint8Array(e.target.result),canal,file.name);
+  reader.readAsArrayBuffer(file);
+}
+function processWorkbook(data,canal,filename){
+  const wb=XLSX.read(data,{type:'array'});
+  const metaSheet=wb.Sheets['META']||wb.Sheets['Meta']||wb.Sheets['meta'];
+  let fecha=null;
+  if(metaSheet&&metaSheet['B1']){
+    const raw=metaSheet['B1'].v;
+    if(typeof raw==='number'){
+      const date=new Date(Math.round((raw-25569)*86400*1000));
+      fecha=`${date.getUTCDate().toString().padStart(2,'0')}/${(date.getUTCMonth()+1).toString().padStart(2,'0')}/${date.getUTCFullYear()}`;
+    } else fecha=String(raw);
+  }
+  CANAL_FECHAS[canal]=fecha;
+  const dataSheetName=wb.SheetNames.find(n=>n.toUpperCase()!=='META')||wb.SheetNames[0];
+  const sheet=wb.Sheets[dataSheetName];
+  const rows=XLSX.utils.sheet_to_json(sheet,{header:1,defval:''});
+  if(rows.length<2){markCanalPending(canal);return;}
+  if(canal==='Programatica'){processProgramatica(rows,canal,filename,fecha);return;}
+
+  const hr=rows[0];
+  const colArea=findColIndex(hr,HEADER_ALIASES.area);
+  const colClase=findColIndex(hr,HEADER_ALIASES.claseOrden);
+  const colAnio=findColIndex(hr,HEADER_ALIASES.anio);
+  const colMes=findColIndex(hr,HEADER_ALIASES.mes);
+  const colImporte=findColIndex(hr,HEADER_ALIASES.importe);
+  const colSector=findColIndex(hr,HEADER_ALIASES.sector);
+  const colAnunciante=findColIndex(hr,HEADER_ALIASES.anunciante);
+  const colMarca=findColIndex(hr,HEADER_ALIASES.marca);
+  const colComercial=findColIndex(hr,HEADER_ALIASES.comercial);
+  const colDetalle=findColIndex(hr,HEADER_ALIASES.detalle);
+  const colPublicacion=findColIndex(hr,HEADER_ALIASES.publicacion);
+  if(colAnio===-1||colImporte===-1){markCanalPending(canal);return;}
+
+  DATA=DATA.filter(d=>d.canal!==canal);
+  for(let i=1;i<rows.length;i++){
+    const row=rows[i];
+    const rawArea=colArea!==-1?String(row[colArea]||'').trim():'';
+    const rawClase=colClase!==-1?String(row[colClase]||'').trim():'';
+    const anio=parseInt(row[colAnio],10);
+    const mes=colMes!==-1?parseMonth(row[colMes]):null;
+    const importe=parseFloat(String(row[colImporte]).replace(',','.'))||0;
+    const rawSec=colSector!==-1?String(row[colSector]||'').trim():'';
+    const sector=rawSec.replace(/^[\d\s*]+\*?\s*/,'').trim().toUpperCase()||'SIN SECTOR';
+    const anunciante=colAnunciante!==-1?String(row[colAnunciante]||'').trim():'';
+    const marca=colMarca!==-1?String(row[colMarca]||'').trim():'';
+    const comercial=colComercial!==-1?String(row[colComercial]||'').trim():'';
+    const detalle=colDetalle!==-1?String(row[colDetalle]||'').trim():'';
+    const publicacion=colPublicacion!==-1?String(row[colPublicacion]||'').trim():'';
+    if(isNaN(anio)||anio<2000||anio>2100) continue;
+    if(importe===0) continue;
+    const claseLetra=normalize(rawClase).charAt(0);
+    let team;
+    if(claseLetra==='j') team='Internacional';
+    else if(claseLetra==='p'||claseLetra==='q') team='Programática';
+    else{
+      const areaNorm=normalize(rawArea);
+      if(areaNorm.includes('programat')) team='Programática';
+      else if(areaNorm.includes('barcelona')) team='Barcelona';
+      else if(areaNorm.includes('internacional')) team='Internacional';
+      else team='Madrid';
+    }
+    if(mes!==null) hasMesColumn=true;
+
+    // ── Split Elle Digital en Elle / Elle Gourmet / Elle Travel ──
+    // Cada fila del Excel pertenece a UNA sola publicación (Elle general, Gourmet o Travel),
+    // detectada por la columna "Detalle". Un único push por fila, sin restas que anulen el importe:
+    // antes se restaba el importe de "Elle" para compensar el alta en Gourmet/Travel, pero como
+    // nunca existía una fila positiva de "Elle" para esa misma línea, el importe acababa neto en 0.
+    if(canal==='Digital' && normalize(cleanDigitalPub(publicacion))==='elle'){
+      const det=normalize(detalle);
+      const isGourmet = det.includes('gourmet');
+      const isTravel  = det.includes('viaje') || det.includes('travel');
+      let pubLabel='Elle';
+      if(isGourmet) pubLabel='Elle Gourmet';
+      else if(isTravel) pubLabel='Elle Travel';
+      DATA.push({sector,team,anio,mes,importe,canal,anunciante,marca,comercial,detalle,publicacion,pubLabel});
+    } else {
+      DATA.push({sector,team,anio,mes,importe,canal,anunciante,marca,comercial,detalle,publicacion});
+    }
+  }
+  rebuildYears();
+  analyzePrintPatterns();
+  markCanalLoaded(canal,filename,fecha);
+  initMonthFilter();
+  initPubFilter();
+  showUI();
+  render();
+}
+function processProgramatica(rows,canal,filename,fecha){
+  DATA_PROG=[];
+  const hr=rows[0];
+  const colSector=findColIndex(hr,HEADER_ALIASES.sector);
+  const colAnio=findColIndex(hr,HEADER_ALIASES.anio);
+  const colMes=findColIndex(hr,HEADER_ALIASES.mes);
+  const colImporte=findColIndex(hr,HEADER_ALIASES.importe);
+  const colImporteAnt=findColIndex(hr,HEADER_ALIASES.importeAnt);
+  const colAnunciante=findColIndex(hr,HEADER_ALIASES.anunciante);
+  const colMarca=findColIndex(hr,HEADER_ALIASES.marca);
+  if(colSector===-1||colAnio===-1){markCanalPending(canal);return;}
+  for(let i=1;i<rows.length;i++){
+    const row=rows[i];
+    const rawSec=String(row[colSector]||'').trim();
+    const sector=rawSec.replace(/^[\d\s*]+\*?\s*/,'').trim().toUpperCase()||'SIN SECTOR';
+    const anunciante=colAnunciante!==-1?String(row[colAnunciante]||'').trim():'';
+    const marca=colMarca!==-1?String(row[colMarca]||'').trim():'';
+    // Las filas cuyo Sector real ya es VENDORS, o que vienen SIN sector relleno en el Excel,
+    // se tratan igual: ya están (o deben quedarse) dentro de VENDORS en los datos base, así
+    // que no se añaden como fila nueva ni entran en la resta de "Con Programática" (evita
+    // restar de más a VENDORS). Ver estructura-excel-programatica.txt.
+    if(!rawSec||normalize(sector)==='vendors') continue;
+    const anio=parseInt(row[colAnio],10);
+    const mes=colMes!==-1?parseMonth(row[colMes]):null;
+    if(isNaN(anio)||anio<2000||anio>2100) continue;
+    let importe=0;
+    if(anio===2026&&colImporte!==-1) importe=parseFloat(String(row[colImporte]).replace(',','.'))||0;
+    else if(anio===2025&&colImporteAnt!==-1) importe=parseFloat(String(row[colImporteAnt]).replace(',','.'))||0;
+    if(importe===0) continue;
+    if(mes!==null) hasMesColumn=true;
+    DATA_PROG.push({sector,team:'Programática',anio,mes,importe,canal:'Programatica',anunciante,marca,comercial:''});
+  }
+  rebuildYears();
+  markCanalLoaded(canal,filename,fecha);
+  initMonthFilter();
+  showUI();
+  render();
+}
+function rebuildYears(){
+  const aniosSet=new Set([...DATA,...DATA_PROG].map(d=>d.anio));
+  YEARS=Array.from(aniosSet).sort((a,b)=>a-b);
+  initYearFilter();
+}
+function initYearFilter(){
+  // Todos los años activos por defecto
+  YEARS.forEach(y=>selectedYears.add(y));
+  const chips=document.getElementById('yfChips');
+  if(!chips) return;
+  chips.innerHTML='';
+  YEARS.forEach(y=>{
+    const chip=document.createElement('div');
+    chip.className='mf-chip'+(selectedYears.has(y)?' active':'');
+    chip.textContent=y;
+    chip.onclick=()=>{
+      if(selectedYears.has(y)) selectedYears.delete(y); else selectedYears.add(y);
+      chip.classList.toggle('active',selectedYears.has(y));
+      render();
+    };
+    chips.appendChild(chip);
+  });
+}
+function setYearMode(mode){
+  const chips=document.getElementById('yfChips');
+  if(mode==='none'){
+    selectedYears=new Set();
+  } else {
+    selectedYears=new Set(YEARS);
+  }
+  Array.from(chips.querySelectorAll('.mf-chip')).forEach(c=>{
+    c.classList.toggle('active', mode==='all');
+  });
+  render();
+}
+function showUI(){
+  document.getElementById('pubFilter').style.display='flex'; // .pub-filter usa flex-direction:column
+  document.getElementById('yearFilter').style.display='flex';
+  if(hasMesColumn) document.getElementById('monthFilter').style.display='flex';
+}
+function initMonthFilter(){
+  if(!hasMesColumn) return;
+  const allData=[...DATA,...DATA_PROG];
+  const allMonths=new Set(allData.map(d=>d.mes).filter(m=>m!==null));
+  const sorted=Array.from(allMonths).sort((a,b)=>a-b);
+
+  // Por defecto todos los meses seleccionados
+  if(selectedMonths.size===0){
+    selectedMonths=new Set(sorted);
+  }
+
+  const chips=document.getElementById('mfChips');
+  chips.innerHTML='';
+  sorted.forEach(m=>{
+    const chip=document.createElement('div');
+    chip.className='mf-chip'+(selectedMonths.has(m)?' active':'');
+    chip.textContent=MES_ABBR[m-1];
+    chip.onclick=()=>{
+      if(selectedMonths.has(m)) selectedMonths.delete(m); else selectedMonths.add(m);
+      chip.classList.toggle('active',selectedMonths.has(m));
+      updateMonthBtns('');
+      render();
+    };
+    chips.appendChild(chip);
+  });
+}
+
+// ── PALETA DE COLORES (hasta 20 publicaciones) ──
+const PUB_COLORS = [
+  '#00a3e0','#e05c00','#1f9d55','#9b59b6','#e74c3c',
+  '#f39c12','#16a085','#2980b9','#8e44ad','#27ae60',
+  '#d35400','#c0392b','#1abc9c','#2c3e50','#f1c40f',
+  '#7f8c8d','#6c5ce7','#fd79a8','#00b894','#e17055'
+];
+const pubColorMap = {};
+let pubColorIdx = 0;
+function getPubColor(pub){
+  if(!pubColorMap[pub]){ pubColorMap[pub]=PUB_COLORS[pubColorIdx%PUB_COLORS.length]; pubColorIdx++; }
+  return pubColorMap[pub];
+}
+
+function render(){
+  const output=document.getElementById('output');
+  const totalRegistros=DATA.length+DATA_PROG.length;
+  if(totalRegistros===0){
+    output.innerHTML='<div class="empty-state"><p>&#128202; <b>Sin datos</b></p><p>Sube el Excel de ventas usando las tarjetas de arriba.</p></div>';
+    return;
+  }
+
+  // Publicaciones activas (unión de todos los canales)
+  const activePubs = new Set();
+  Object.entries(selectedPubs).forEach(([canal,set])=>set.forEach(p=>activePubs.add(p)));
+
+  if(activePubs.size===0){
+    output.innerHTML='<div class="empty-state"><p>&#128200; <b>Selecciona publicaciones</b></p><p>Elige una o varias publicaciones en el filtro de arriba para ver los gráficos.</p></div>';
+    return;
+  }
+
+  // Filtrar datos
+  const filtered=DATA.filter(d=>{
+    const pubs=selectedPubs[d.canal];
+    if(!pubs||!pubs.has(getPublicacion(d))) return false;
+    if(selectedYears.size>0&&!selectedYears.has(d.anio)) return false;
+    if(hasMesColumn&&selectedMonths.size>0&&!selectedMonths.has(d.mes)) return false;
+    return true;
+  });
+
+  if(filtered.length===0){
+    output.innerHTML='<div class="empty-state"><p>&#9888;&#65039; <b>Sin registros</b></p><p>No hay datos para la selección actual.</p></div>';
+    return;
+  }
+
+  // Agrupar: pubKey -> anio -> mes -> importe
+  const pubsArr = Array.from(activePubs).sort((a,b)=>a.localeCompare(b,'es'));
+  const years = selectedYears.size>0
+    ? YEARS.filter(y=>selectedYears.has(y))
+    : YEARS.length>0 ? YEARS : Array.from(new Set(filtered.map(d=>d.anio))).sort();
+  const months = hasMesColumn && selectedMonths.size>0
+    ? Array.from(selectedMonths).sort((a,b)=>a-b)
+    : [1,2,3,4,5,6,7,8,9,10,11,12];
+
+  // Aggregate: pub -> year -> month -> sum
+  const agg = {};
+  pubsArr.forEach(p=>{ agg[p]={}; years.forEach(y=>{ agg[p][y]={}; months.forEach(m=>{ agg[p][y][m]=0; }); }); });
+  filtered.forEach(d=>{
+    const p=getPublicacion(d);
+    if(!agg[p]) return;
+    const y=d.anio; let m=d.mes||0;
+    if(m>0 && d.canal==='Print' && (pubDataMode[p]||'real')==='cooked' && PRINT_COOK_MAP[p]){
+      const mapped=PRINT_COOK_MAP[p].get(y+'-'+m);
+      if(mapped) m=mapped;
+    }
+    if(!agg[p][y]) agg[p][y]={};
+    if(m>0){ agg[p][y][m]=(agg[p][y][m]||0)+d.importe; }
+  });
+
+  // ── Assign colors per pub ──
+  pubsArr.forEach(p=>getPubColor(p));
+
+  const html = [];
+  html.push('<div class="charts-wrap">');
+  html.push(buildIngresosTable(pubsArr, years, months, agg));
+  html.push(buildMonthRanking(pubsArr, years, agg));
+  html.push(buildChart_LinesByYear(pubsArr, years, months, agg));
+  html.push(buildChart_GroupedBars(pubsArr, years, months, agg));
+  html.push(buildChart_StackedByPub(pubsArr, years, months, agg));
+  html.push(buildAnunciantesBlock(activePubs));
+  html.push('</div>');
+  output.innerHTML = html.join('');
+}
+
+// ── TABLA: Ingreso por año × mes (13 columnas) ──
+function buildIngresosTable(pubsArr, years, months, agg){
+  const ALL_MONTHS=[1,2,3,4,5,6,7,8,9,10,11,12];
+  const cols=ALL_MONTHS; // siempre 12 meses en cabecera
+
+  // Colgroup: columna Año fija 60px, meses 72px cada una, Total 80px
+  let colgroup='<colgroup><col style="width:60px">';
+  cols.forEach(()=>{ colgroup+='<col style="width:72px">'; });
+  colgroup+='<col style="width:80px"></colgroup>';
+
+  // Cabecera
+  let thead='<tr><th>Año</th>';
+  cols.forEach(m=>{ thead+=`<th>${MES_ABBR[m-1]}</th>`; });
+  thead+='<th>Total</th></tr>';
+
+  let tbody='';
+
+  pubsArr.forEach((p,pi)=>{
+    // Separador de publicación
+    tbody+=`<tr class="pub-sep"><td colspan="14" style="color:${getPubColor(p)}">${p}${cookToggleHtml(p)}</td></tr>`;
+
+    let pubTotals={}; cols.forEach(m=>{ pubTotals[m]=0; }); let pubGrand=0;
+
+    years.forEach(y=>{
+      let rowTotal=0;
+      let tr=`<tr><td>${y}</td>`;
+      cols.forEach(m=>{
+        const v=(agg[p]&&agg[p][y]&&agg[p][y][m])||0;
+        rowTotal+=v;
+        pubTotals[m]+=v;
+        tr+=v!==0?`<td>${formatEUR(v)}</td>`:'<td class="zero">—</td>';
+      });
+      pubGrand+=rowTotal;
+      tr+=`<td class="total-col">${formatEUR(rowTotal)}</td></tr>`;
+      tbody+=tr;
+    });
+
+    // Fila total de la publicación
+    let totalRow='<tr class="total-row"><td>Total</td>';
+    cols.forEach(m=>{ totalRow+=`<td>${formatEUR(pubTotals[m])}</td>`; });
+    totalRow+=`<td>${formatEUR(pubGrand)}</td></tr>`;
+    tbody+=totalRow;
+  });
+
+  return `<div class="chart-block">
+    <div class="chart-title">📋 Ingreso por publicación, año y mes</div>
+    <div class="ing-table-wrap"><table class="ing-table">${colgroup}<thead>${thead}</thead><tbody>${tbody}</tbody></table></div>
+  </div>`;
+}
+
+// ── BLOQUE: Top 3 mejores y peores meses del acumulado (solo años con todos los meses cerrados) ──
+function buildMonthRanking(pubsArr, years, agg){
+  const ALL_MONTHS=[1,2,3,4,5,6,7,8,9,10,11,12];
+  const completeYears = years.filter(y=>y<REAL_CURRENT_YEAR);
+
+  if(completeYears.length===0){
+    return `<div class="chart-block">
+      <div class="chart-title">🏆 Mejores y peores meses del acumulado</div>
+      <div class="no-data-msg">No hay ningún año completo (con todos los meses cerrados) en la selección actual.</div>
+    </div>`;
+  }
+
+  const monthTotal={}; ALL_MONTHS.forEach(m=>monthTotal[m]=0);
+  completeYears.forEach(y=>{
+    pubsArr.forEach(p=>{
+      ALL_MONTHS.forEach(m=>{ monthTotal[m]+=(agg[p]&&agg[p][y]&&agg[p][y][m])||0; });
+    });
+  });
+
+  const withData = ALL_MONTHS.filter(m=>monthTotal[m]!==0);
+  if(withData.length===0){
+    return `<div class="chart-block">
+      <div class="chart-title">🏆 Mejores y peores meses del acumulado</div>
+      <div class="no-data-msg">Sin datos numéricos en los años completos seleccionados.</div>
+    </div>`;
+  }
+
+  const sorted=[...withData].sort((a,b)=>monthTotal[b]-monthTotal[a]);
+  const n=sorted.length;
+  const bestCount=Math.min(3,n);
+  const worstCount=Math.min(3,n-bestCount);
+  const best=sorted.slice(0,bestCount);
+  const worst=sorted.slice(n-worstCount).reverse();
+
+  const rankRow=(m,pos)=>`<div class="rank-item"><span class="rank-pos">${pos}</span><span class="rank-month">${titleCase(MES_NOMBRES[m-1])}</span><span class="rank-val">${formatEUR(monthTotal[m])}</span></div>`;
+  const bestHtml = best.map((m,i)=>rankRow(m,i+1)).join('') || '<div class="no-data-msg">—</div>';
+  const worstHtml = worst.map((m,i)=>rankRow(m,i+1)).join('') || '<div class="no-data-msg">—</div>';
+
+  const yearsLabel = completeYears.slice().sort((a,b)=>a-b).join(', ');
+
+  return `<div class="chart-block">
+    <div class="chart-title">🏆 Mejores y peores meses del acumulado <span class="chart-subtitle">— suma por mes de calendario, todas las publicaciones seleccionadas</span></div>
+    <div class="rank-cols">
+      <div class="rank-col">
+        <div class="rank-col-title rank-col-best">📈 Top 3 mejores meses</div>
+        ${bestHtml}
+      </div>
+      <div class="rank-col">
+        <div class="rank-col-title rank-col-worst">📉 Top 3 peores meses</div>
+        ${worstHtml}
+      </div>
+    </div>
+    <div class="rank-note">* Calculado solo con años con todos los meses cerrados: ${yearsLabel}. Se excluye ${REAL_CURRENT_YEAR} (año en curso) y cualquier año posterior.</div>
+  </div>`;
+}
+
+// ── BLOQUE: Top 25 anunciantes por ingreso, con presencia mensual (selector de años propio) ──
+function toggleAnuncianteYear(y){
+  if(anuncianteYears.has(y)) anuncianteYears.delete(y); else anuncianteYears.add(y);
+  render();
+}
+function setAnuncianteYears(mode){
+  anuncianteYears = mode==='all' ? new Set(YEARS) : new Set();
+  render();
+}
+function setAnuncianteView(mode){
+  anuncianteViewMode = mode;
+  render();
+}
+function buildAnunciantesBlock(activePubs){
+  const yearChipsHtml = YEARS.map(y=>
+    `<div class="mf-chip${anuncianteYears.has(y)?' active':''}" onclick="toggleAnuncianteYear(${y})">${y}</div>`
+  ).join('');
+  const selectorHtml = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+      <div class="mf-chips" style="margin-bottom:0;">${yearChipsHtml}</div>
+      <div class="mf-actions" style="margin-bottom:0;margin-left:0;">
+        <button class="mf-btn" onclick="setAnuncianteYears('none')">Ninguno</button>
+        <button class="mf-btn" onclick="setAnuncianteYears('all')">Todos</button>
+      </div>
+    </div>`;
+  const viewToggleHtml = `
+    <div class="mf-actions" style="margin-bottom:14px;margin-left:0;">
+      <button class="mf-btn${anuncianteViewMode==='presencia'?' active':''}" onclick="setAnuncianteView('presencia')">Presencia</button>
+      <button class="mf-btn${anuncianteViewMode==='ingreso'?' active':''}" onclick="setAnuncianteView('ingreso')">Ingreso</button>
+    </div>`;
+
+  if(anuncianteYears.size===0){
+    return `<div class="chart-block">
+      <div class="chart-title">🏢 Top 25 anunciantes por ingreso</div>
+      ${selectorHtml}
+      <div class="no-data-msg">Selecciona uno o varios años arriba para ver el ranking.</div>
+    </div>`;
+  }
+
+  // Respeta las publicaciones activas del filtro general; el año lo decide este bloque.
+  const rows = DATA.filter(d=>{
+    const pubs=selectedPubs[d.canal];
+    if(!pubs||!activePubs.has(getPublicacion(d))||!pubs.has(getPublicacion(d))) return false;
+    return anuncianteYears.has(d.anio);
+  });
+
+  const ALL_MONTHS=[1,2,3,4,5,6,7,8,9,10,11,12];
+
+  // Sub-bloque: nº de anunciantes distintos por mes (y nº de marcas distintas entre paréntesis),
+  // sobre TODOS los anunciantes con presencia ese mes (no solo el Top 25 de abajo).
+  const monthAnunSet={}, monthMarcaSet={};
+  ALL_MONTHS.forEach(m=>{ monthAnunSet[m]=new Set(); monthMarcaSet[m]=new Set(); });
+  rows.forEach(d=>{
+    const anun=(d.anunciante||'').trim();
+    const marca=(d.marca||'').trim();
+    const p=getPublicacion(d);
+    let m=d.mes||0;
+    if(m>0 && d.canal==='Print' && (pubDataMode[p]||'real')==='cooked' && PRINT_COOK_MAP[p]){
+      const mapped=PRINT_COOK_MAP[p].get(d.anio+'-'+m);
+      if(mapped) m=mapped;
+    }
+    if(m<1||m>12) return;
+    if(anun) monthAnunSet[m].add(anun);
+    if(marca) monthMarcaSet[m].add(marca);
+  });
+  const monthBoxesHtml = `<div class="anun-month-boxes">${ALL_MONTHS.map(m=>
+    `<div class="anun-month-box"><div class="amb-month">${MES_ABBR[m-1]}</div><div class="amb-count">${monthAnunSet[m].size}<span class="amb-marcas">(${monthMarcaSet[m].size})</span></div></div>`
+  ).join('')}</div>
+  <div class="rank-note">* Nº de anunciantes distintos con ingreso ese mes; entre paréntesis, nº de marcas distintas. Según los años y publicaciones seleccionados.</div>`;
+
+  const byAnun={}; // anunciante -> {total, months:Set}
+  rows.forEach(d=>{
+    const anun=(d.anunciante||'').trim();
+    if(!anun) return;
+    const p=getPublicacion(d);
+    let m=d.mes||0;
+    if(m>0 && d.canal==='Print' && (pubDataMode[p]||'real')==='cooked' && PRINT_COOK_MAP[p]){
+      const mapped=PRINT_COOK_MAP[p].get(d.anio+'-'+m);
+      if(mapped) m=mapped;
+    }
+    if(!byAnun[anun]) byAnun[anun]={total:0, months:new Set(), monthAmounts:{}};
+    byAnun[anun].total+=d.importe;
+    if(m>0){
+      byAnun[anun].months.add(m);
+      byAnun[anun].monthAmounts[m]=(byAnun[anun].monthAmounts[m]||0)+d.importe;
+    }
+  });
+
+  const ranked=Object.entries(byAnun).sort((a,b)=>b[1].total-a[1].total).slice(0,25);
+
+  const yearsLabel=Array.from(anuncianteYears).sort((a,b)=>a-b).join(', ');
+  const monthBoxesBlock = `<div class="chart-block">
+    <div class="chart-title">📊 Anunciantes (y marcas) con ingreso en cada mes <span class="chart-subtitle">— años: ${yearsLabel}</span></div>
+    ${monthBoxesHtml}
+  </div>`;
+
+  const topBlockHeader = `<div class="chart-title">🏢 Top 25 anunciantes por ingreso <span class="chart-subtitle">— años: ${yearsLabel}</span></div>${selectorHtml}${viewToggleHtml}`;
+
+  if(ranked.length===0){
+    return `<div class="chart-block">
+      ${topBlockHeader}
+      <div class="no-data-msg">Sin datos de anunciantes para los años y publicaciones seleccionados.</div>
+    </div>${monthBoxesBlock}`;
+  }
+
+  let colgroup='<colgroup><col style="width:190px">';
+  ALL_MONTHS.forEach(()=>{ colgroup+='<col style="width:48px">'; });
+  colgroup+='<col style="width:90px"></colgroup>';
+
+  let thead='<tr><th>Anunciante</th>';
+  ALL_MONTHS.forEach(m=>{ thead+=`<th>${MES_ABBR[m-1]}</th>`; });
+  thead+='<th>Total</th></tr>';
+
+  let tbody='';
+  ranked.forEach(([anun,info],i)=>{
+    let tr=`<tr><td>${i+1}. ${anun}</td>`;
+    ALL_MONTHS.forEach(m=>{
+      if(anuncianteViewMode==='ingreso'){
+        const amt=info.monthAmounts[m]||0;
+        tr+= amt>0 ? `<td class="anun-amt">${formatK(amt)}</td>` : '<td class="zero">·</td>';
+      } else {
+        tr+= info.months.has(m) ? '<td class="anun-mark">●</td>' : '<td class="zero">·</td>';
+      }
+    });
+    tr+=`<td class="total-col">${formatEUR(info.total)}</td></tr>`;
+    tbody+=tr;
+  });
+
+  // Fila de totales: nº de anunciantes activos, o ingreso conjunto del Top 25, por mes (según el modo de vista).
+  let totalRow = anuncianteViewMode==='ingreso'
+    ? '<tr class="anun-total-row"><td>Ingreso total (Top 25)</td>'
+    : '<tr class="anun-total-row"><td>Nº anunciantes activos (Top 25)</td>';
+  ALL_MONTHS.forEach(m=>{
+    if(anuncianteViewMode==='ingreso'){
+      const sum=ranked.reduce((acc,[,info])=>acc+(info.monthAmounts[m]||0),0);
+      totalRow+=`<td>${formatK(sum)}</td>`;
+    } else {
+      const count=ranked.filter(([,info])=>info.months.has(m)).length;
+      totalRow+=`<td>${count}</td>`;
+    }
+  });
+  totalRow+=`<td class="total-col">—</td></tr>`;
+  tbody+=totalRow;
+
+  return `<div class="chart-block">
+    ${topBlockHeader}
+    <div class="ing-table-wrap"><table class="ing-table anun-table">${colgroup}<thead>${thead}</thead><tbody>${tbody}</tbody></table></div>
+  </div>${monthBoxesBlock}`;
+}
+
+
+const YEAR_COLORS = ['#00a3e0','#e05c00','#1f9d55','#9b59b6','#e74c3c','#f39c12','#16a085','#2980b9'];
+function yc(yr, years){ return YEAR_COLORS[years.indexOf(yr)%YEAR_COLORS.length]; }
+
+// Año real en curso y sus meses aún abiertos (no cerrados), para aclarar la línea
+// del tramo que todavía no tiene el dato consolidado y así no distorsionar la lectura.
+const REAL_CURRENT_YEAR = new Date().getFullYear();
+function lightenColor(hex, amount=0.82){
+  hex=String(hex).replace('#','');
+  if(hex.length!==6) return hex;
+  const r=parseInt(hex.substring(0,2),16), g=parseInt(hex.substring(2,4),16), b=parseInt(hex.substring(4,6),16);
+  const mix=(c)=>Math.round(c+(255-c)*amount);
+  return `rgb(${mix(r)},${mix(g)},${mix(b)})`;
+}
+
+function svgLine(pts, color, dash=false){
+  if(pts.length<2) return '';
+  const d=pts.map((p,i)=>(i===0?`M${p[0]},${p[1]}`:`L${p[0]},${p[1]}`)).join(' ');
+  return `<path d="${d}" fill="none" stroke="${color}" stroke-width="2.2" stroke-dasharray="${dash?'5,3':''}" stroke-linejoin="round" stroke-linecap="round"/>`;
+}
+function svgDot(x,y,color,r=3.5){
+  return `<circle cx="${x}" cy="${y}" r="${r}" fill="${color}" stroke="#fff" stroke-width="1.2"/>`;
+}
+function formatK(v){
+  if(Math.abs(v)>=1000000) return (v/1000000).toFixed(1).replace('.',',')+'M';
+  if(Math.abs(v)>=1000) return Math.round(v/1000)+'k';
+  return Math.round(v).toString();
+}
+
+// ── GRÁFICO 1: Líneas mes a mes, una línea por año (y por publicación si hay varias) ──
+function buildChart_LinesByYear(pubsArr, years, months, agg){
+  const W=900, H=320, ML=62, MR=20, MT=20, MB=44;
+  const cW=W-ML-MR, cH=H-MT-MB;
+
+  // Calcular max global
+  let maxVal=0;
+  pubsArr.forEach(p=>years.forEach(y=>months.forEach(m=>{ maxVal=Math.max(maxVal,agg[p][y][m]||0); })));
+  if(maxVal===0) return '<div class="chart-block"><div class="no-data-msg">Sin datos numéricos para graficar.</div></div>';
+  maxVal=maxVal*1.12;
+
+  const xStep = cW/(months.length-1||1);
+  const yScale = v => MT + cH - (v/maxVal)*cH;
+  const xPos = i => ML + i*xStep;
+
+  let svgContent='';
+  // Eje Y
+  const yTicks=5;
+  for(let i=0;i<=yTicks;i++){
+    const v=maxVal*i/yTicks;
+    const y=yScale(v);
+    svgContent+=`<line x1="${ML}" y1="${y}" x2="${ML+cW}" y2="${y}" stroke="#e2e6ec" stroke-width="${i===0?1.5:0.8}"/>`;
+    svgContent+=`<text x="${ML-6}" y="${y+4}" text-anchor="end" font-size="9" fill="#6b7280">${formatK(v)}</text>`;
+  }
+  // Eje X
+  months.forEach((m,i)=>{
+    const x=xPos(i);
+    svgContent+=`<text x="${x}" y="${H-MB+14}" text-anchor="middle" font-size="9" fill="#6b7280">${MES_ABBR[m-1]}</text>`;
+  });
+
+  // Una línea por (pub × año) — si solo hay 1 pub, la línea se colorea por año
+  // Si hay varias pubs, se colorea por pub y se varía el dash por año
+  const multiPub = pubsArr.length>1;
+  const dashes = ['','5,3','2,4','8,3','4,2'];
+  const closedMonthsNow = getClosedMonths();
+  pubsArr.forEach(p=>{
+    years.forEach((y,yi)=>{
+      const color = multiPub ? getPubColor(p) : yc(y,years);
+      const dash = multiPub ? dashes[yi%dashes.length] : false;
+      const pts = months.map((m,i)=>[xPos(i), yScale(agg[p][y][m]||0)]);
+      if(y===REAL_CURRENT_YEAR){
+        // Año en curso: tramo de meses cerrados en color sólido, tramo de meses
+        // abiertos (aún sin dato consolidado) en color aclarado para no distorsionar.
+        const openColor = lightenColor(color);
+        const closedIdx = months.reduce((last,m,i)=>closedMonthsNow.has(m)?i:last, -1);
+        const closedPts = pts.slice(0, closedIdx+1);
+        const openPts = pts.slice(Math.max(closedIdx,0));
+        svgContent+=svgLine(closedPts, color, dash);
+        svgContent+=svgLine(openPts, openColor, dash);
+        pts.forEach(([x,yy],i)=>{ svgContent+=svgDot(x,yy, closedMonthsNow.has(months[i])?color:openColor); });
+      } else {
+        svgContent+=svgLine(pts, color, dash);
+        pts.forEach(([x,yy])=>{ svgContent+=svgDot(x,yy,color); });
+      }
+    });
+  });
+
+  // Leyenda
+  let legendHtml='<div class="chart-legend">';
+  if(!multiPub){
+    years.forEach(y=>{ legendHtml+=`<div class="legend-item"><div class="legend-dot" style="background:${yc(y,years)}"></div>${y}</div>`; });
+  } else {
+    pubsArr.forEach(p=>{ legendHtml+=`<div class="legend-item"><div class="legend-dot" style="background:${getPubColor(p)}"></div>${p}</div>`; });
+    if(years.length>1){
+      legendHtml+='<span style="font-size:10px;color:#6b7280;margin-left:8px;">';
+      years.forEach((y,i)=>{ legendHtml+=`${y}=${dashes[i%dashes.length]===''?'línea sólida':'línea '+(['','discontinua','punteada','guiones'][i]||'variante')+''} &nbsp;`; });
+      legendHtml+='</span>';
+    }
+  }
+  legendHtml+='</div>';
+  if(years.includes(REAL_CURRENT_YEAR)){
+    legendHtml+=`<div style="font-size:10px;color:#6b7280;margin-top:4px;">🔅 Tramo claro en ${REAL_CURRENT_YEAR} = meses aún abiertos (sin cerrar)</div>`;
+  }
+
+  return `<div class="chart-block">
+    <div class="chart-title">📈 Ingreso mes a mes por año <span class="chart-subtitle">— una línea por año · comparativa estacional</span></div>
+    <div class="chart-svg-wrap"><svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:520px">${svgContent}</svg></div>
+    ${legendHtml}
+  </div>`;
+}
+
+// ── GRÁFICO 2: Barras agrupadas por mes, grupos = años ──
+function buildChart_GroupedBars(pubsArr, years, months, agg){
+  const W=900, H=300, ML=62, MR=20, MT=20, MB=44;
+  const cW=W-ML-MR, cH=H-MT-MB;
+
+  // Suma por año+mes (todas las pubs seleccionadas)
+  const totals={};
+  years.forEach(y=>{ totals[y]={}; months.forEach(m=>{ totals[y][m]=0; }); });
+  pubsArr.forEach(p=>years.forEach(y=>months.forEach(m=>{ totals[y][m]+=(agg[p][y][m]||0); })));
+
+  let maxVal=0;
+  years.forEach(y=>months.forEach(m=>{ maxVal=Math.max(maxVal,totals[y][m]); }));
+  if(maxVal===0) return '';
+  maxVal*=1.12;
+
+  const groupW = cW/months.length;
+  const barW = Math.max(2, (groupW*0.8)/years.length);
+  const yScale = v => MT+cH-(v/maxVal)*cH;
+
+  let svgContent='';
+  // Eje Y
+  for(let i=0;i<=5;i++){
+    const v=maxVal*i/5;
+    const y=yScale(v);
+    svgContent+=`<line x1="${ML}" y1="${y}" x2="${ML+cW}" y2="${y}" stroke="#e2e6ec" stroke-width="${i===0?1.5:0.8}"/>`;
+    svgContent+=`<text x="${ML-6}" y="${y+4}" text-anchor="end" font-size="9" fill="#6b7280">${formatK(v)}</text>`;
+  }
+  months.forEach((m,mi)=>{
+    const gx = ML + mi*groupW + groupW/2;
+    svgContent+=`<text x="${gx}" y="${H-MB+14}" text-anchor="middle" font-size="9" fill="#6b7280">${MES_ABBR[m-1]}</text>`;
+    years.forEach((y,yi)=>{
+      const bx = ML + mi*groupW + (groupW-barW*years.length)/2 + yi*barW;
+      const bh = Math.max(0,(totals[y][m]/maxVal)*cH);
+      const by = MT+cH-bh;
+      svgContent+=`<rect x="${bx}" y="${by}" width="${barW-1}" height="${bh}" fill="${yc(y,years)}" rx="1.5" opacity="0.88"/>`;
+    });
+  });
+
+  let legendHtml='<div class="chart-legend">';
+  years.forEach(y=>{ legendHtml+=`<div class="legend-item"><div class="legend-dot" style="background:${yc(y,years)};border-radius:2px"></div>${y}</div>`; });
+  legendHtml+='</div>';
+
+  return `<div class="chart-block">
+    <div class="chart-title">📊 Barras agrupadas por mes <span class="chart-subtitle">— cada color = un año · total publicaciones seleccionadas</span></div>
+    <div class="chart-svg-wrap"><svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:520px">${svgContent}</svg></div>
+    ${legendHtml}
+  </div>`;
+}
+
+// ── GRÁFICO 3: Barras apiladas por publicación, eje X = mes (suma de años seleccionados) ──
+function buildChart_StackedByPub(pubsArr, years, months, agg){
+  const W=900, H=300, ML=62, MR=20, MT=20, MB=44;
+  const cW=W-ML-MR, cH=H-MT-MB;
+
+  // Total por pub+mes (suma de años)
+  const stack={}; // pub -> mes -> val
+  pubsArr.forEach(p=>{ stack[p]={}; months.forEach(m=>{ stack[p][m]=years.reduce((s,y)=>s+(agg[p][y][m]||0),0); }); });
+
+  let maxStack=0;
+  months.forEach(m=>{ let s=pubsArr.reduce((t,p)=>t+(stack[p][m]||0),0); maxStack=Math.max(maxStack,s); });
+  if(maxStack===0) return '';
+  maxStack*=1.12;
+
+  const barW = Math.max(4, (cW/months.length)*0.72);
+  const yScale = v => MT+cH-(v/maxStack)*cH;
+
+  let svgContent='';
+  for(let i=0;i<=5;i++){
+    const v=maxStack*i/5;
+    const y=yScale(v);
+    svgContent+=`<line x1="${ML}" y1="${y}" x2="${ML+cW}" y2="${y}" stroke="#e2e6ec" stroke-width="${i===0?1.5:0.8}"/>`;
+    svgContent+=`<text x="${ML-6}" y="${y+4}" text-anchor="end" font-size="9" fill="#6b7280">${formatK(v)}</text>`;
+  }
+  months.forEach((m,mi)=>{
+    const cx = ML + (mi+0.5)*(cW/months.length);
+    svgContent+=`<text x="${cx}" y="${H-MB+14}" text-anchor="middle" font-size="9" fill="#6b7280">${MES_ABBR[m-1]}</text>`;
+    let base=MT+cH;
+    pubsArr.forEach(p=>{
+      const v=stack[p][m]||0;
+      const bh=(v/maxStack)*cH;
+      if(bh<0.5) return;
+      const by=base-bh;
+      svgContent+=`<rect x="${cx-barW/2}" y="${by}" width="${barW}" height="${bh}" fill="${getPubColor(p)}" rx="1"/>`;
+      base=by;
+    });
+  });
+
+  let legendHtml='<div class="chart-legend">';
+  pubsArr.forEach(p=>{ legendHtml+=`<div class="legend-item"><div class="legend-dot" style="background:${getPubColor(p)};border-radius:2px"></div>${p}</div>`; });
+  legendHtml+='</div>';
+
+  return `<div class="chart-block">
+    <div class="chart-title">🗂️ Barras apiladas por publicación <span class="chart-subtitle">— suma de todos los años seleccionados</span></div>
+    <div class="chart-svg-wrap"><svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:520px">${svgContent}</svg></div>
+    ${legendHtml}
+  </div>`;
+}
+
+document.addEventListener('DOMContentLoaded',autoLoadFromServer);
+</script>
+</body>
+</html>
