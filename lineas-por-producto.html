@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Líneas por Producto</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --navy:#0d2340;--navy-light:#16345f;--accent:#00a3e0;
+    --green:#1f9d55;--red:#d64545;--bg:#f4f6f9;
+    --border:#e2e6ec;--text:#1f2937;--muted:#6b7280;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Segoe UI',Arial,sans-serif;font-size:13px;background:var(--bg);color:var(--text);}
+  header{background:linear-gradient(90deg,var(--navy),var(--navy-light));color:#fff;padding:20px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+  header h1{margin:0;font-size:20px;font-weight:600;letter-spacing:.3px;}
+  header .subtitle{font-size:13px;color:#c9d6e8;margin-top:4px;}
+  .fechas-wrap{display:flex;gap:16px;flex-wrap:wrap;margin-top:4px;}
+  .fecha-canal{font-size:11px;color:#c9d6e8;}
+  .fecha-canal span{color:#fff;font-weight:600;}
+  .upload-wrap{display:flex;flex-direction:column;align-items:flex-start;gap:8px;}
+  .up-multi-sub{font-size:12px;color:#c9d6e8;}
+  .up-cards{display:flex;gap:12px;flex-wrap:wrap;}
+  .up-card{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:8px 14px;cursor:pointer;transition:.15s;display:flex;align-items:center;gap:8px;min-width:160px;}
+  .up-card:hover{background:rgba(255,255,255,0.15);}
+  .up-card.loaded{background:rgba(31,157,85,0.25);border-color:#1f9d55;}
+  .up-icon{font-size:16px;}
+  .up-canal-name{font-size:13px;font-weight:700;color:#fff;}
+  .up-mini-status{font-size:11px;color:#c9d6e8;margin-left:auto;}
+  .up-card.loaded .up-mini-status{color:#2ecc71;font-weight:600;}
+  main{padding:24px 32px 60px;max-width:1400px;margin:0 auto;}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:16px;}
+  .mf-label{font-size:12.5px;font-weight:600;color:var(--muted);margin-right:2px;white-space:nowrap;}
+  .month-filter{display:none;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;background:#fff;border:1px solid var(--border);border-radius:8px;padding:9px 12px;}
+  .mf-chips{display:flex;gap:4px;flex-wrap:wrap;}
+  .mf-chip{padding:5px 10px;border-radius:14px;border:1px solid var(--border);background:#f4f6f9;font-size:12px;cursor:pointer;color:var(--text);user-select:none;transition:.15s;}
+  .mf-chip.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
+  .mf-chip:hover{border-color:var(--accent);}
+  .mf-actions{display:flex;gap:6px;margin-left:auto;}
+  .mf-btn{padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:#fff;font-size:12px;cursor:pointer;color:var(--navy);font-weight:600;white-space:nowrap;}
+  .mf-btn:hover{background:#eef2f7;}
+  .mf-btn.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+  .empty-state{background:#fff;border:1px dashed var(--border);border-radius:10px;padding:60px 20px;text-align:center;color:var(--muted);}
+  .empty-state b{color:var(--text);}
+  .tab-bar{display:none;gap:0;margin-bottom:16px;border-bottom:2px solid var(--border);flex-wrap:wrap;}
+  .tab-btn{padding:9px 20px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border:1px solid transparent;border-bottom:none;border-radius:6px 6px 0 0;background:#f4f6f9;margin-bottom:-2px;transition:.15s;user-select:none;white-space:nowrap;}
+  .tab-btn:hover{color:var(--navy);background:#eef2f7;}
+  .tab-btn.active{color:var(--navy);background:#fff;border-color:var(--border);border-bottom-color:#fff;font-weight:700;}
+
+  /* ── Filtro de Comercial ── */
+  .comercial-filter{display:flex;align-items:center;gap:8px;flex:1;min-width:260px;position:relative;}
+  .comercial-filter input{padding:9px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;width:100%;max-width:340px;}
+  .comercial-filter input:focus{outline:none;border-color:var(--accent);}
+  #comercialClearBtn{display:none;}
+
+  /* ── Filtro de Sector ── */
+  .sector-filters-label{font-size:12.5px;font-weight:600;color:var(--muted);margin:0 0 8px;}
+  .sector-btns{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px;}
+  .sector-btn{padding:7px 14px;border-radius:16px;border:1px solid var(--border);background:#f4f6f9;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--navy);user-select:none;transition:.15s;}
+  .sector-btn:hover{border-color:var(--accent);}
+  .sector-btn.active{background:var(--navy);border-color:var(--navy);color:#fff;}
+
+  /* ── Filtro de Franja de importe ── */
+  .franja-filter{display:none;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;background:#fff;border:1px solid var(--border);border-radius:8px;padding:9px 12px;}
+  .franja-filter input[type="number"]{width:110px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;}
+  .franja-filter input[type="number"]:focus{outline:none;border-color:var(--accent);}
+  .franja-btn{padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:#fff;font-size:12px;cursor:pointer;color:var(--navy);font-weight:600;white-space:nowrap;}
+  .franja-btn:hover{background:#eef2f7;}
+
+  /* ── Bloques de contenido ── */
+  #blocksContainer{display:flex;flex-direction:column;gap:20px;}
+  .block-card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:20px 24px;}
+  .block-card-title{font-size:14.5px;font-weight:700;color:var(--navy);margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+  .canal-digital-dot{color:#00a3e0;}.canal-print-dot{color:#e67e22;}.canal-eventos-dot{color:#8e44ad;}
+  table.mini-canal-table{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed;}
+  table.mini-canal-table thead th{background:var(--navy);color:#fff;text-align:center;padding:9px 8px;font-weight:600;}
+  table.mini-canal-table thead th:first-child{text-align:left;}
+  table.mini-canal-table tbody td{padding:9px 8px;text-align:center;border-bottom:1px solid var(--border);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  table.mini-canal-table tbody td:first-child{text-align:left;font-weight:600;color:var(--navy);}
+  table.mini-canal-table tbody tr:last-child td{border-bottom:none;}
+  table.mini-canal-table tbody tr:hover{background:#f8fafc;}
+  table.mini-canal-table tfoot td{padding:9px 8px;text-align:center;font-weight:700;color:var(--navy);background:#eef2f7;}
+  table.mini-canal-table tfoot td:first-child{text-align:left;}
+  table.mini-canal-table th:nth-child(1),table.mini-canal-table td:nth-child(1){width:46%;}
+  table.mini-canal-table th:nth-child(2),table.mini-canal-table td:nth-child(2){width:18%;}
+  table.mini-canal-table th:nth-child(3),table.mini-canal-table td:nth-child(3){width:18%;}
+  table.mini-canal-table th:nth-child(4),table.mini-canal-table td:nth-child(4){width:18%;}
+  table.mini-canal-table.no-franja th:nth-child(1),table.mini-canal-table.no-franja td:nth-child(1){width:52%;}
+  table.mini-canal-table.no-franja th:nth-child(3),table.mini-canal-table.no-franja td:nth-child(3){width:24%;}
+  table.mini-canal-table.no-franja th:nth-child(4),table.mini-canal-table.no-franja td:nth-child(4){width:24%;}
+  .franja-col{display:none;}
+  table.mini-canal-table tbody td.franja-col{background:#fdeef3;font-weight:700;color:#a3265a;}
+  table.mini-canal-table tbody tr:hover td.franja-col{background:#fbe1ea;}
+  table.mini-canal-table tfoot td.franja-col{background:#f6c8da;}
+
+  /* ── Desglose de líneas por producto ── */
+  .desglose-toggle{display:inline-flex;align-items:center;justify-content:center;width:16px;cursor:pointer;color:var(--accent);font-size:9px;margin-right:6px;transition:transform .15s;user-select:none;}
+  .desglose-toggle.open{transform:rotate(90deg);}
+  .desglose-spacer{display:inline-block;width:22px;}
+  tr.producto-row.expanded td{background:#eaf5fc;}
+  tr.producto-row.row-dimmed td{color:#b9c1cb!important;opacity:.55;}
+  tr.producto-row.row-dimmed td.franja-col{color:#eccbda!important;}
+  tr.desglose-row td{padding:0;border-bottom:1px solid var(--border);background:#f8fafc;}
+  .desglose-wrap{padding:10px 16px 14px 38px;}
+  table.desglose-table{width:100%;border-collapse:collapse;font-size:12px;}
+  table.desglose-table thead th{background:#e7edf4;color:var(--navy);text-align:left;padding:6px 10px;font-weight:600;border-bottom:1px solid var(--border);}
+  table.desglose-table tbody td{padding:6px 10px;border-bottom:1px solid #eaeef3;color:var(--text);}
+  table.desglose-table tbody tr:last-child td{border-bottom:none;}
+  table.desglose-table tbody tr:hover{background:#eef2f7;}
+  table.desglose-table td.desglose-ingreso,table.desglose-table th.desglose-ingreso-th{text-align:right;}
+  table.desglose-table td.desglose-ingreso{font-weight:700;color:var(--navy);}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Líneas por Producto</h1>
+    <div class="subtitle">Nº de líneas reales e ingreso por producto — Digital / Print / Eventos</div>
+    <div class="fechas-wrap" id="fechasWrap" style="display:none"></div>
+  </div>
+  <div class="upload-wrap">
+    <div class="up-multi-sub">Cargando automáticamente los Excel desde SharePoint…</div>
+    <div class="up-cards">
+      <div class="up-card" id="up-card-Digital" onclick="document.getElementById('fileDigital').click()">
+        <span class="up-icon">💻</span><span class="up-canal-name">Digital</span>
+        <div class="up-mini-status" id="up-status-Digital">Buscando en SharePoint…</div>
+        <input type="file" id="fileDigital" accept=".xlsx,.xls" style="display:none" onchange="onFileInputCanal(this,'Digital')">
+      </div>
+      <div class="up-card" id="up-card-Print" onclick="document.getElementById('filePrint').click()">
+        <span class="up-icon">📰</span><span class="up-canal-name">Print</span>
+        <div class="up-mini-status" id="up-status-Print">Buscando en SharePoint…</div>
+        <input type="file" id="filePrint" accept=".xlsx,.xls" style="display:none" onchange="onFileInputCanal(this,'Print')">
+      </div>
+      <div class="up-card" id="up-card-Eventos" onclick="document.getElementById('fileEventos').click()">
+        <span class="up-icon">🎤</span><span class="up-canal-name">Eventos</span>
+        <div class="up-mini-status" id="up-status-Eventos">Buscando en SharePoint…</div>
+        <input type="file" id="fileEventos" accept=".xlsx,.xls" style="display:none" onchange="onFileInputCanal(this,'Eventos')">
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div id="monthFilter" class="month-filter">
+    <span class="mf-label">Meses:</span>
+    <div class="mf-chips" id="mfChips"></div>
+    <div class="mf-actions">
+      <button class="mf-btn" id="mfNone" onclick="setMonthMode('none')">Ninguno</button>
+      <button class="mf-btn active" id="mfClosed" onclick="setMonthMode('closed')">Cerrados</button>
+      <button class="mf-btn" id="mfAll" onclick="setMonthMode('all')">Todos</button>
+    </div>
+  </div>
+
+  <div class="toolbar" id="toolbar" style="display:none">
+    <div class="comercial-filter">
+      <span class="mf-label">Comercial:</span>
+      <input type="text" id="comercialInput" list="comercialDatalist" placeholder="Escribe o selecciona un comercial…" oninput="onComercialInput()" autocomplete="off">
+      <datalist id="comercialDatalist"></datalist>
+      <button class="mf-btn" id="comercialClearBtn" onclick="clearComercial()">✕</button>
+    </div>
+    <div class="year-filter" id="yearFilter" style="display:none;align-items:center;gap:8px;">
+      <span class="mf-label">Año:</span>
+      <select class="sort-select" id="yearSelect" onchange="onYearChange()" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:#fff;"></select>
+    </div>
+  </div>
+
+  <div class="tab-bar" id="tabBar">
+    <div class="tab-btn active" data-tab="todos" onclick="switchTab('todos',this)">Todos</div>
+    <div class="tab-btn" data-tab="madrid-lujo" onclick="switchTab('madrid-lujo',this)">Madrid Lujo</div>
+    <div class="tab-btn" data-tab="madrid-lifestyle" onclick="switchTab('madrid-lifestyle',this)">Madrid Lifestyle</div>
+    <div class="tab-btn" data-tab="barcelona" onclick="switchTab('barcelona',this)">Barcelona</div>
+    <div class="tab-btn" data-tab="internacional" onclick="switchTab('internacional',this)">Internacional</div>
+    <div class="tab-btn" data-tab="programatica" onclick="switchTab('programatica',this)">Programática</div>
+  </div>
+
+  <div id="sectorFilterWrap" style="display:none">
+    <div class="sector-filters-label">Elige un sector si quieres ver el desglose solo de ese sector:</div>
+    <div class="sector-btns" id="sectorBtns"></div>
+  </div>
+
+  <div class="franja-filter" id="franjaFilter">
+    <span class="mf-label">Franja de importe (€):</span>
+    <span style="font-size:12px;color:var(--muted)">Desde</span>
+    <input type="number" id="franjaDesde" placeholder="—" oninput="onFranjaChange()">
+    <span style="font-size:12px;color:var(--muted)">Hasta</span>
+    <input type="number" id="franjaHasta" placeholder="—" oninput="onFranjaChange()">
+    <button class="franja-btn" onclick="clearFranja()">✕ Limpiar</button>
+  </div>
+
+  <div id="blocksContainer">
+    <div class="empty-state"><p>📊 <b>Sin datos</b></p><p>Esperando la carga automática de los Excel…</p></div>
+  </div>
+</main>
+
+<script>
+let DATA = [];
+let ALL_YEARS = [];
+let selectedYear = new Date().getFullYear();
+let hasMesColumn = false;
+let selectedMonths = new Set();
+let activeTab = 'todos';
+let selectedComercial = '';
+let ALL_COMERCIALES = [];
+let selectedSector = '';
+let expandedProductos = new Set(); // claves "canal|||producto" con el desglose abierto
+const CANAL_FECHAS = {};
+const CANALES = ['Digital','Print','Eventos'];
+const CANAL_ICON = {Digital:'💻',Print:'📰',Eventos:'🎤'};
+const CANAL_DOT = {Digital:'canal-digital-dot',Print:'canal-print-dot',Eventos:'canal-eventos-dot'};
+
+const SECTORES_MADRID_LUJO = ['BELLEZA E HIGIENE','DECORACION','FINANZAS','JOYERIA/RELOJERIA','MODA','SALUD'];
+const SECTORES_MADRID_LIFESTYLE = ['AAPP','DEPORTES Y TIEMPO LIBRE','ENERGIA','ENTRETENIMIENTO','MOTOR','RETAIL','TECNOLOGIA','VIAJES','ALIMENTACION','BEBIDAS'];
+const MES_ABBR = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const MES_NOMBRES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+const EXCEL_URLS = {
+  Digital: 'https://hearstspain-my.sharepoint.com/personal/japaricio_hearst_es/_layouts/15/download.aspx?share=IQBtUVlYDjlRRoCaM7gsBE1eATJ8miXAVtnTs6Qcuioee-Y',
+  Print:   'https://hearstspain-my.sharepoint.com/personal/japaricio_hearst_es/_layouts/15/download.aspx?share=IQCgA4a20KbOTIY3RsToUyewAROi0viVXnYcoXICS4M0cNU',
+  Eventos: 'https://hearstspain-my.sharepoint.com/personal/japaricio_hearst_es/_layouts/15/download.aspx?share=IQDZNkSJLhXFToC-uOPwQt-KAcAnft0wGr7bEwH4pJhzMoU'
+};
+
+const HEADER_ALIASES = {
+  area:        ['áreas','areas','área','area','equipo','team'],
+  claseOrden:  ['clase de orden','clase orden','claseorden','clase_orden','order class','order type'],
+  anio:        ['año inserción','ano insercion','año insercion','ano inserción','año'],
+  mes:         ['mes inserción','mes insercion','mes'],
+  importe:     ['imp.neto a comisionar','imp neto a comisionar','importe neto a comisionar','imp.neto comisionar'],
+  sector:      ['sector'],
+  anunciante:  ['anunciante'],
+  marca:       ['marca'],
+  comercial:   ['comercial'],
+  publicacion: ['publicación','publicacion','publicaciones','cabecera','revista','site','medio'],
+  detalle:     ['detalle'],
+  producto:    ['producto','productos'],
+  familia:     ['familia','familias']
+};
+
+function normalize(str){
+  return String(str||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+}
+function findColIndex(headerRow, aliases){
+  const nh=headerRow.map(normalize);
+  for(const a of aliases){ const i=nh.indexOf(normalize(a)); if(i!==-1) return i; }
+  return -1;
+}
+function parseMonth(val){
+  if(!val) return null;
+  const n=parseInt(val,10);
+  if(!isNaN(n)&&n>=1&&n<=12) return n;
+  const norm=normalize(String(val));
+  const idx=MES_NOMBRES.findIndex(m=>norm.startsWith(normalize(m)));
+  return idx!==-1?idx+1:null;
+}
+function formatEUR(val){
+  if(val===null||val===undefined||isNaN(val)) return '-';
+  const sign=val<0?'-':'';
+  const str=Math.abs(Math.round(val)).toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+  return sign+str+'\u00A0\u20AC';
+}
+function formatInt(val){
+  if(val===null||val===undefined||isNaN(val)) return '-';
+  const sign=val<0?'-':'';
+  return sign+Math.abs(Math.round(val)).toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+}
+function formatEURExact(val){
+  if(val===null||val===undefined||isNaN(val)) return '-';
+  const sign=val<0?'-':'';
+  const str=Math.abs(Math.round(val)).toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+  return sign+str+'\u00A0\u20AC';
+}
+function escapeHtml(str){
+  return String(str===null||str===undefined?'':str).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function getClosedMonths(){
+  const currentMonth = new Date().getMonth() + 1;
+  const closed = new Set();
+  for(let m = 1; m < currentMonth; m++) closed.add(m);
+  return closed;
+}
+
+/* ────────────── CARGA DE EXCEL ────────────── */
+async function autoLoadFromServer(){
+  await Promise.all(CANALES.map(async canal=>{
+    try{
+      const res=await fetch(EXCEL_URLS[canal],{cache:'no-cache'});
+      if(!res.ok) throw new Error('No encontrado');
+      const buffer=await res.arrayBuffer();
+      processWorkbook(new Uint8Array(buffer),canal,canal.toUpperCase()+'.xlsx');
+    }catch(e){ markCanalPending(canal); }
+  }));
+}
+function markCanalLoaded(canal,filename,fecha){
+  const card=document.getElementById('up-card-'+canal);
+  const status=document.getElementById('up-status-'+canal);
+  if(card) card.classList.add('loaded');
+  if(status) status.textContent='✓ '+filename+(fecha?' · '+fecha:'');
+  updateFechasHeader();
+}
+function updateFechasHeader(){
+  const wrap=document.getElementById('fechasWrap');
+  if(!wrap) return;
+  const parts=CANALES.filter(c=>CANAL_FECHAS[c])
+    .map(c=>`<div class="fecha-canal">${CANAL_ICON[c]} ${c}: <span>${CANAL_FECHAS[c]}</span></div>`);
+  if(parts.length>0){wrap.innerHTML=parts.join('');wrap.style.display='flex';}
+}
+function markCanalPending(canal){
+  const card=document.getElementById('up-card-'+canal);
+  const status=document.getElementById('up-status-'+canal);
+  if(card) card.classList.remove('loaded');
+  if(status) status.textContent='No disponible · pulsa para subirlo manualmente';
+}
+function onFileInputCanal(input,canal){
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>processWorkbook(new Uint8Array(e.target.result),canal,file.name);
+  reader.readAsArrayBuffer(file);
+}
+function processWorkbook(data,canal,filename){
+  const wb=XLSX.read(data,{type:'array'});
+  const metaSheet=wb.Sheets['META']||wb.Sheets['Meta']||wb.Sheets['meta'];
+  let fecha=null;
+  if(metaSheet&&metaSheet['B1']){
+    const raw=metaSheet['B1'].v;
+    if(typeof raw==='number'){
+      const date=new Date(Math.round((raw-25569)*86400*1000));
+      fecha=`${date.getUTCDate().toString().padStart(2,'0')}/${(date.getUTCMonth()+1).toString().padStart(2,'0')}/${date.getUTCFullYear()}`;
+    } else fecha=String(raw);
+  }
+  CANAL_FECHAS[canal]=fecha;
+  const dataSheetName=wb.SheetNames.find(n=>n.toUpperCase()!=='META')||wb.SheetNames[0];
+  const sheet=wb.Sheets[dataSheetName];
+  const rows=XLSX.utils.sheet_to_json(sheet,{header:1,defval:''});
+  if(rows.length<2){markCanalPending(canal);return;}
+
+  const hr=rows[0];
+  const colArea=findColIndex(hr,HEADER_ALIASES.area);
+  const colClase=findColIndex(hr,HEADER_ALIASES.claseOrden);
+  const colAnio=findColIndex(hr,HEADER_ALIASES.anio);
+  const colMes=findColIndex(hr,HEADER_ALIASES.mes);
+  const colImporte=findColIndex(hr,HEADER_ALIASES.importe);
+  const colSector=findColIndex(hr,HEADER_ALIASES.sector);
+  const colAnunciante=findColIndex(hr,HEADER_ALIASES.anunciante);
+  const colMarca=findColIndex(hr,HEADER_ALIASES.marca);
+  const colComercial=findColIndex(hr,HEADER_ALIASES.comercial);
+  const colPublicacion=findColIndex(hr,HEADER_ALIASES.publicacion);
+  const colProducto=findColIndex(hr,HEADER_ALIASES.producto);
+  const colFamilia=findColIndex(hr,HEADER_ALIASES.familia);
+  const colDetalle=findColIndex(hr,HEADER_ALIASES.detalle);
+  if(colAnio===-1||colImporte===-1){markCanalPending(canal);return;}
+
+  DATA=DATA.filter(d=>d.canal!==canal);
+  for(let i=1;i<rows.length;i++){
+    const row=rows[i];
+    const rawArea=colArea!==-1?String(row[colArea]||'').trim():'';
+    const rawClase=colClase!==-1?String(row[colClase]||'').trim():'';
+    const anio=parseInt(row[colAnio],10);
+    const mes=colMes!==-1?parseMonth(row[colMes]):null;
+    const importe=parseFloat(String(row[colImporte]).replace(',','.'))||0;
+    const rawSec=colSector!==-1?String(row[colSector]||'').trim():'';
+    const sector=rawSec.replace(/^[\d\s*]+\*?\s*/,'').trim().toUpperCase()||'SIN SECTOR';
+    const anunciante=colAnunciante!==-1?String(row[colAnunciante]||'').trim():'';
+    const marca=colMarca!==-1?String(row[colMarca]||'').trim():'';
+    const comercial=colComercial!==-1?String(row[colComercial]||'').trim():'';
+    const publicacion=colPublicacion!==-1?String(row[colPublicacion]||'').trim():'';
+    const producto=colProducto!==-1?String(row[colProducto]||'').trim():'';
+    const familia=colFamilia!==-1?String(row[colFamilia]||'').trim():'';
+    const detalleRaw=colDetalle!==-1?String(row[colDetalle]||'').trim():'';
+    if(isNaN(anio)||anio<2000||anio>2100) continue;
+    const claseLetra=normalize(rawClase).charAt(0);
+    let team;
+    if(claseLetra==='j') team='Internacional';
+    else if(claseLetra==='p'||claseLetra==='q') team='Programática';
+    else{
+      const areaNorm=normalize(rawArea);
+      if(areaNorm.includes('programat')) team='Programática';
+      else if(areaNorm.includes('barcelona')) team='Barcelona';
+      else if(areaNorm.includes('internacional')) team='Internacional';
+      else team='Madrid';
+    }
+    if(mes!==null) hasMesColumn=true;
+    DATA.push({sector,team,anio,mes,importe,canal,anunciante,marca,comercial,publicacion,detalle:detalleRaw,producto,familia});
+  }
+  rebuildYears();
+  markCanalLoaded(canal,filename,fecha);
+  initMonthFilter();
+  populateComercialList();
+  populateSectorButtons();
+  showUI();
+  render();
+}
+
+/* ────────────── AÑO / MESES ────────────── */
+function rebuildYears(){
+  const aniosSet=new Set(DATA.map(d=>d.anio));
+  ALL_YEARS=Array.from(aniosSet).sort((a,b)=>a-b);
+  populateYearSelect();
+}
+function populateYearSelect(){
+  const sel=document.getElementById('yearSelect');
+  if(!sel||ALL_YEARS.length===0) return;
+  const sortedDesc=[...ALL_YEARS].sort((a,b)=>b-a);
+  if(!ALL_YEARS.includes(selectedYear)){
+    const thisYear=new Date().getFullYear();
+    selectedYear=ALL_YEARS.includes(thisYear)?thisYear:sortedDesc[0];
+  }
+  sel.innerHTML=sortedDesc.map(y=>`<option value="${y}" ${y===selectedYear?'selected':''}>${y}</option>`).join('');
+  document.getElementById('yearFilter').style.display='flex';
+}
+function onYearChange(){
+  const sel=document.getElementById('yearSelect');
+  selectedYear=parseInt(sel.value,10);
+  populateComercialList();
+  render();
+}
+function showUI(){
+  document.getElementById('toolbar').style.display='flex';
+  document.getElementById('tabBar').style.display='flex';
+  document.getElementById('sectorFilterWrap').style.display='block';
+  document.getElementById('franjaFilter').style.display='flex';
+  if(hasMesColumn) document.getElementById('monthFilter').style.display='flex';
+}
+function initMonthFilter(){
+  if(!hasMesColumn) return;
+  const allMonths=new Set(DATA.map(d=>d.mes).filter(m=>m!==null));
+  const sorted=Array.from(allMonths).sort((a,b)=>a-b);
+  if(selectedMonths.size===0){
+    selectedMonths=getClosedMonths();
+  }
+  const chips=document.getElementById('mfChips');
+  chips.innerHTML='';
+  sorted.forEach(m=>{
+    const chip=document.createElement('div');
+    chip.className='mf-chip'+(selectedMonths.has(m)?' active':'');
+    chip.textContent=MES_ABBR[m-1];
+    chip.onclick=()=>{
+      if(selectedMonths.has(m)) selectedMonths.delete(m); else selectedMonths.add(m);
+      chip.classList.toggle('active',selectedMonths.has(m));
+      updateMonthBtns('');
+      render();
+    };
+    chips.appendChild(chip);
+  });
+}
+function updateMonthBtns(mode){
+  document.getElementById('mfNone').classList.toggle('active', mode==='none');
+  document.getElementById('mfClosed').classList.toggle('active', mode==='closed');
+  document.getElementById('mfAll').classList.toggle('active', mode==='all');
+}
+function setMonthMode(mode){
+  const allMonths=new Set(DATA.map(d=>d.mes).filter(m=>m!==null));
+  const sorted=Array.from(allMonths).sort((a,b)=>a-b);
+  const chips=document.getElementById('mfChips');
+  if(mode==='none') selectedMonths=new Set();
+  else if(mode==='closed') selectedMonths=getClosedMonths();
+  else if(mode==='all') selectedMonths=new Set(sorted);
+  chips.querySelectorAll('.mf-chip').forEach((c,i)=>{
+    c.classList.toggle('active', selectedMonths.has(sorted[i]));
+  });
+  updateMonthBtns(mode);
+  render();
+}
+
+/* ────────────── ZONA (tab bar) ────────────── */
+function switchTab(tab,el){
+  activeTab=tab;
+  document.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));
+  if(el) el.classList.add('active');
+  render();
+}
+function getDataForTab(tab){
+  if(tab==='todos') return DATA;
+  if(tab==='madrid-lujo') return DATA.filter(d=>d.team==='Madrid');
+  if(tab==='madrid-lifestyle') return DATA.filter(d=>d.team==='Madrid');
+  if(tab==='barcelona') return DATA.filter(d=>d.team==='Barcelona');
+  if(tab==='internacional') return DATA.filter(d=>d.team==='Internacional');
+  if(tab==='programatica') return DATA.filter(d=>d.team==='Programática');
+  return DATA;
+}
+function getSectorFilterForTab(tab){
+  if(tab==='madrid-lujo') return new Set(SECTORES_MADRID_LUJO.map(normalize));
+  if(tab==='madrid-lifestyle') return new Set(SECTORES_MADRID_LIFESTYLE.map(normalize));
+  return null;
+}
+
+/* ────────────── COMERCIAL ────────────── */
+function populateComercialList(){
+  const set=new Set(DATA.filter(d=>d.comercial).map(d=>d.comercial));
+  ALL_COMERCIALES=Array.from(set).sort((a,b)=>a.localeCompare(b,'es'));
+  const conIngreso=new Set(
+    DATA.filter(d=>d.comercial&&d.anio===selectedYear&&d.importe>0).map(d=>d.comercial)
+  );
+  const visibleComerciales=ALL_COMERCIALES.filter(c=>conIngreso.has(c));
+  const dl=document.getElementById('comercialDatalist');
+  dl.innerHTML=visibleComerciales.map(c=>`<option value="${c}"></option>`).join('');
+}
+function onComercialInput(){
+  const input=document.getElementById('comercialInput');
+  const val=input.value;
+  const valNorm=normalize(val);
+  const match=ALL_COMERCIALES.find(c=>normalize(c)===valNorm);
+  selectedComercial=match||'';
+  document.getElementById('comercialClearBtn').style.display=val?'inline-block':'none';
+  render();
+}
+function clearComercial(){
+  selectedComercial='';
+  document.getElementById('comercialInput').value='';
+  document.getElementById('comercialClearBtn').style.display='none';
+  render();
+}
+
+/* ────────────── SECTOR ────────────── */
+function populateSectorButtons(){
+  const set=new Set(DATA.map(d=>d.sector).filter(Boolean));
+  const sectors=Array.from(set).sort((a,b)=>a.localeCompare(b,'es'));
+  const wrap=document.getElementById('sectorBtns');
+  wrap.innerHTML=sectors.map(s=>`<div class="sector-btn">${s}</div>`).join('');
+  wrap.querySelectorAll('.sector-btn').forEach((btn,i)=>{
+    const s=sectors[i];
+    btn.classList.toggle('active', normalize(s)===normalize(selectedSector));
+    btn.addEventListener('click',()=>{
+      selectedSector=(normalize(selectedSector)===normalize(s))?'':s;
+      wrap.querySelectorAll('.sector-btn').forEach(b=>b.classList.remove('active'));
+      if(selectedSector) btn.classList.add('active');
+      render();
+    });
+  });
+}
+
+/* ────────────── FRANJA DE IMPORTE ────────────── */
+function onFranjaChange(){ render(); }
+function clearFranja(){
+  document.getElementById('franjaDesde').value='';
+  document.getElementById('franjaHasta').value='';
+  render();
+}
+function getFranja(){
+  const dRaw=document.getElementById('franjaDesde').value;
+  const hRaw=document.getElementById('franjaHasta').value;
+  const desde=dRaw===''?null:parseFloat(dRaw);
+  const hasta=hRaw===''?null:parseFloat(hRaw);
+  return {desde,hasta};
+}
+
+/* ────────────── LÓGICA DE LÍNEA REAL ────────────── */
+// Un reparo es una línea negativa que cancela una línea positiva del mismo
+// anunciante+marca (dentro de la misma publicación) SOLO si el importe es
+// exactamente igual. Las negativas sin una positiva exacta que cancelar no
+// restan. Venta conjunta (mismo importe, Madrid + Barcelona, comerciales
+// distintos) cuenta como una sola línea. Reutilizado tal cual de
+// analisis-redes-sociales.html (computeRealPubStats / computeGroupRealLineCount),
+// pero devolviendo también los ítems completos (no solo el importe) para poder
+// aplicar después la fusión especial de la familia Display.
+function computeRealPubItems(pubItems){
+  const groups=new Map();
+  pubItems.forEach(it=>{
+    const key=normalize(it.anunciante)+'|||'+normalize(it.marca);
+    if(!groups.has(key)) groups.set(key,{pos:[],neg:[]});
+    if(it.importe>0) groups.get(key).pos.push(it);
+    else if(it.importe<0) groups.get(key).neg.push(it);
+  });
+  const realItems=[];
+  groups.forEach(g=>{
+    const posItems=g.pos.slice();
+    g.neg.forEach(nIt=>{
+      const target=Math.abs(nIt.importe);
+      const exactIdx=posItems.findIndex(p=>Math.round(p.importe*100)===Math.round(target*100));
+      if(exactIdx>=0) posItems.splice(exactIdx,1);
+    });
+    const byImporte=new Map();
+    posItems.forEach(it=>{
+      const ik=Math.round(it.importe*100);
+      if(!byImporte.has(ik)) byImporte.set(ik,[]);
+      byImporte.get(ik).push(it);
+    });
+    byImporte.forEach(subGroup=>{
+      const madridItems=subGroup.filter(it=>(it.team||'').toLowerCase()==='madrid');
+      const barcelonaItems=subGroup.filter(it=>(it.team||'').toLowerCase()==='barcelona');
+      const otherItems=subGroup.filter(it=>{const t=(it.team||'').toLowerCase();return t!=='madrid'&&t!=='barcelona';});
+      const pairs=Math.min(madridItems.length,barcelonaItems.length);
+      let pairedM=0,pairedB=0;
+      for(let i=0;i<pairs;i++){
+        if(normalize(madridItems[i].comercial||'')!==normalize(barcelonaItems[i].comercial||'')){
+          realItems.push({...madridItems[i],importe:madridItems[i].importe+barcelonaItems[i].importe});
+          pairedM++;pairedB++;
+        } else {
+          realItems.push({...madridItems[i]});
+          realItems.push({...barcelonaItems[i]});
+        }
+      }
+      for(let i=pairedM;i<madridItems.length;i++) realItems.push({...madridItems[i]});
+      for(let i=pairedB;i<barcelonaItems.length;i++) realItems.push({...barcelonaItems[i]});
+      otherItems.forEach(it=>realItems.push({...it}));
+    });
+  });
+  return realItems;
+}
+function computeRealPubStats(pubItems){
+  const realItems=computeRealPubItems(pubItems);
+  return {realCount:realItems.length,realValues:realItems.map(it=>it.importe)};
+}
+// Adaptación de computeGroupRealLineCount: en vez de devolver solo el nº de
+// líneas reales, devuelve el array de importes reales (ya con neteo de
+// reparos y fusión de venta conjunta aplicados), agrupando primero por
+// publicación como hace el original.
+function computeGroupRealValues(rows){
+  const byPub=new Map();
+  rows.forEach(it=>{
+    const key=it.publicacion||'';
+    if(!byPub.has(key)) byPub.set(key,[]);
+    byPub.get(key).push(it);
+  });
+  let values=[];
+  byPub.forEach(pubItems=>{ values=values.concat(computeRealPubStats(pubItems).realValues); });
+  return values;
+}
+// Igual que computeGroupRealValues pero devolviendo los ítems completos
+// (tras neteo de reparos y fusión de venta conjunta), agrupando primero por
+// publicación. Es la base para la fusión especial de la familia Display.
+function computeGroupRealItems(rows){
+  const byPub=new Map();
+  rows.forEach(it=>{
+    const key=it.publicacion||'';
+    if(!byPub.has(key)) byPub.set(key,[]);
+    byPub.get(key).push(it);
+  });
+  let items=[];
+  byPub.forEach(pubItems=>{ items=items.concat(computeRealPubItems(pubItems)); });
+  return items;
+}
+// ---- Fusión especial para las familias "Display" y "Video" ----
+// Tras el neteo de reparos habitual, las líneas reales que solo difieren en
+// la Publicación (mismo Anunciante+Marca+Comercial+Sector+Mes+Año) se
+// fusionan en una única línea cuyo importe es la suma de todas ellas —
+// igual que agrupar por esas columnas en una tabla dinámica.
+const FAMILIAS_FUSION_NORM=['Display','Video'].map(normalize);
+function isFamiliaFusionRows(rows){
+  return rows.some(d=>FAMILIAS_FUSION_NORM.includes(normalize(d.familia)));
+}
+function computeFusionMergedValues(rows){
+  const realItems=computeGroupRealItems(rows);
+  const map=new Map();
+  realItems.forEach(it=>{
+    const key=normalize(it.anunciante)+'|||'+normalize(it.marca)+'|||'+normalize(it.comercial)+'|||'+normalize(it.sector)+'|||'+(it.mes===null||it.mes===undefined?'':it.mes)+'|||'+it.anio;
+    map.set(key,(map.get(key)||0)+it.importe);
+  });
+  return Array.from(map.values()).map(v=>Math.round(v*100)/100);
+}
+
+
+/* ────────────── DESGLOSE DE LÍNEAS POR PRODUCTO ── */
+// Familias cuyos productos permiten desplegar el desglose de líneas
+// (Anunciante + Marca + Publicación + Comercial + Ingreso exacto), por canal.
+const FAMILIAS_DESGLOSABLES_RAW = {
+  Digital: ['Sponsorship','Curated','Social Networks'],
+  Print: ['Sponsorship','Curated','CONVENCIONAL']
+};
+const FAMILIAS_DESGLOSABLES_NORM = {};
+Object.keys(FAMILIAS_DESGLOSABLES_RAW).forEach(canal=>{
+  FAMILIAS_DESGLOSABLES_NORM[canal]=new Set(FAMILIAS_DESGLOSABLES_RAW[canal].map(normalize));
+});
+function isFamiliaDesglosable(canal,familia){
+  const set=FAMILIAS_DESGLOSABLES_NORM[canal];
+  return set?set.has(normalize(familia)):false;
+}
+function toggleProductoDesglose(canal,producto){
+  const key=canal+'|||'+producto;
+  if(expandedProductos.has(key)) expandedProductos.delete(key);
+  else expandedProductos.add(key);
+  render();
+}
+
+/* ────────────── RENDER ────────────── */
+// Familias que se excluyen por completo del dashboard: sus productos no
+// deben aparecer en ninguno de los tres bloques.
+const FAMILIAS_EXCLUIDAS_NORM=['Programatica Display Directo','Programatica Display Indirecto','Video Programatico Directo','Video Programatico Indirecto'].map(normalize);
+// Anunciantes que se excluyen por completo del dashboard (no son activaciones reales).
+const ANUNCIANTES_EXCLUIDOS_NORM=['AJUSTE PROGRAMATICA'].map(normalize);
+// Productos que se excluyen por completo del dashboard (costes/gastos internos, no son activaciones reales).
+const PRODUCTOS_EXCLUIDOS_NORM=['Gastos Ejecución (Production Cost)','Article (Production Cost)'].map(normalize);
+function getFilteredRowsForCanal(canal){
+  let rows=getDataForTab(activeTab).filter(d=>d.canal===canal);
+  rows=rows.filter(d=>!FAMILIAS_EXCLUIDAS_NORM.includes(normalize(d.familia)));
+  rows=rows.filter(d=>!ANUNCIANTES_EXCLUIDOS_NORM.includes(normalize(d.anunciante)));
+  rows=rows.filter(d=>!PRODUCTOS_EXCLUIDOS_NORM.includes(normalize(d.producto)));
+  const zonaSectorFilter=getSectorFilterForTab(activeTab);
+  if(zonaSectorFilter) rows=rows.filter(d=>zonaSectorFilter.has(normalize(d.sector)));
+  if(selectedComercial) rows=rows.filter(d=>normalize(d.comercial)===normalize(selectedComercial));
+  if(selectedSector) rows=rows.filter(d=>normalize(d.sector)===normalize(selectedSector));
+  rows=rows.filter(d=>d.anio===selectedYear);
+  if(hasMesColumn&&selectedMonths.size>0) rows=rows.filter(d=>d.mes!==null&&selectedMonths.has(d.mes));
+  return rows;
+}
+function computeProductosParaCanal(canal,franja){
+  const rows=getFilteredRowsForCanal(canal);
+  const byProducto=new Map();
+  rows.forEach(d=>{
+    const key=d.producto||'(sin producto)';
+    if(!byProducto.has(key)) byProducto.set(key,[]);
+    byProducto.get(key).push(d);
+  });
+  const items=[];
+  byProducto.forEach((prodRows,producto)=>{
+    const values=isFamiliaFusionRows(prodRows)?computeFusionMergedValues(prodRows):computeGroupRealValues(prodRows);
+    if(values.length===0) return;
+    const realCount=values.length;
+    const ingresoTotal=Math.round(values.reduce((a,b)=>a+b,0)*100)/100;
+    let franjaCount=null;
+    if(franja.hasta!==null){
+      franjaCount=values.filter(v=>franja.desde!==null?(v>=franja.desde&&v<=franja.hasta):v<=franja.hasta).length;
+      if(franjaCount===0) return;
+    }
+    const familia=prodRows[0]?prodRows[0].familia:'';
+    const desglosable=isFamiliaDesglosable(canal,familia);
+    items.push({producto,realCount,ingresoTotal,franjaCount,familia,desglosable,prodRows:desglosable?prodRows:null});
+  });
+  items.sort((a,b)=>b.realCount-a.realCount);
+  return items;
+}
+function renderCanalBlock(canal,franja){
+  const items=computeProductosParaCanal(canal,franja);
+  const showFranja=franja.hasta!==null;
+  const totalLineas=items.reduce((s,it)=>s+it.realCount,0);
+  const totalIngreso=items.reduce((s,it)=>s+it.ingresoTotal,0);
+  const totalFranja=showFranja?items.reduce((s,it)=>s+(it.franjaCount||0),0):null;
+
+  if(items.length===0){
+    return `
+    <div class="block-card">
+      <div class="block-card-title"><span class="${CANAL_DOT[canal]}">●</span> ${canal}</div>
+      <div class="empty-state" style="padding:30px 20px;"><p>Sin líneas reales para los filtros seleccionados.</p></div>
+    </div>`;
+  }
+
+  const anyExpandedInCanal=items.some(it=>expandedProductos.has(canal+'|||'+it.producto));
+  const colspanDesglose=showFranja?4:3;
+
+  let rowsHtml=items.map(it=>{
+    const key=canal+'|||'+it.producto;
+    const isExpanded=it.desglosable&&expandedProductos.has(key);
+    let rowClass='producto-row';
+    if(isExpanded) rowClass+=' expanded';
+    else if(anyExpandedInCanal) rowClass+=' row-dimmed';
+
+    const triangle=it.desglosable
+      ? `<span class="desglose-toggle${isExpanded?' open':''}" data-canal="${escapeHtml(canal)}" data-producto="${escapeHtml(it.producto)}">▶</span>`
+      : `<span class="desglose-spacer"></span>`;
+
+    let html=`
+    <tr class="${rowClass}">
+      <td>${triangle}${it.producto}</td>
+      <td class="franja-col" style="display:${showFranja?'table-cell':'none'}">${it.franjaCount!==null?formatInt(it.franjaCount):'—'}</td>
+      <td>${formatInt(it.realCount)}</td>
+      <td>${formatEUR(it.ingresoTotal)}</td>
+    </tr>`;
+
+    if(isExpanded){
+      let desgloseItems=computeGroupRealItems(it.prodRows);
+      if(showFranja){
+        desgloseItems=desgloseItems.filter(d=>franja.desde!==null?(d.importe>=franja.desde&&d.importe<=franja.hasta):d.importe<=franja.hasta);
+      }
+      desgloseItems=desgloseItems.slice().sort((a,b)=>b.importe-a.importe);
+      const desgloseRows=desgloseItems.map(d=>`
+        <tr>
+          <td>${escapeHtml(d.anunciante)||'—'}</td>
+          <td>${escapeHtml(d.marca)||'—'}</td>
+          <td>${escapeHtml(d.publicacion)||'—'}</td>
+          <td>${escapeHtml(d.comercial)||'—'}</td>
+          <td class="desglose-ingreso">${formatEURExact(d.importe)}</td>
+        </tr>`).join('');
+      html+=`
+    <tr class="desglose-row">
+      <td colspan="${colspanDesglose}">
+        <div class="desglose-wrap">
+          <table class="desglose-table">
+            <thead>
+              <tr>
+                <th>Anunciante</th>
+                <th>Marca</th>
+                <th>Publicación</th>
+                <th>Comercial</th>
+                <th class="desglose-ingreso-th">Ingreso exacto</th>
+              </tr>
+            </thead>
+            <tbody>${desgloseRows}</tbody>
+          </table>
+        </div>
+      </td>
+    </tr>`;
+    }
+    return html;
+  }).join('');
+
+  return `
+    <div class="block-card">
+      <div class="block-card-title"><span class="${CANAL_DOT[canal]}">●</span> ${canal}</div>
+      <table class="mini-canal-table${showFranja?'':' no-franja'}">
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th class="franja-col" style="display:${showFranja?'table-cell':'none'}">Nº líneas en franja</th>
+            <th>Nº líneas reales</th>
+            <th>Ingreso total real</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+        <tfoot>
+          <tr>
+            <td>Total</td>
+            <td class="franja-col" style="display:${showFranja?'table-cell':'none'}">${totalFranja!==null?formatInt(totalFranja):'—'}</td>
+            <td>${formatInt(totalLineas)}</td>
+            <td>${formatEUR(totalIngreso)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>`;
+}
+function render(){
+  const container=document.getElementById('blocksContainer');
+  if(DATA.length===0){
+    container.innerHTML='<div class="empty-state"><p>📊 <b>Sin datos</b></p><p>Esperando la carga automática de los Excel…</p></div>';
+    return;
+  }
+  const franja=getFranja();
+  container.innerHTML=CANALES.map(canal=>renderCanalBlock(canal,franja)).join('');
+}
+
+document.getElementById('blocksContainer').addEventListener('click',function(e){
+  const t=e.target.closest('.desglose-toggle');
+  if(!t) return;
+  toggleProductoDesglose(t.dataset.canal,t.dataset.producto);
+});
+document.addEventListener('DOMContentLoaded',autoLoadFromServer);
+</script>
+</body>
+</html>
