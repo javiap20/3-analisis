@@ -230,6 +230,7 @@ const MES_NOMBRES = ['enero','febrero','marzo','abril','mayo','junio','julio','a
 
 const HEADER_ALIASES = {
   area:        ['áreas','areas','área','area','equipo','team'],
+  areasProg:   ['áreas','areas'],
   claseOrden:  ['clase de orden','clase orden','claseorden','clase_orden','order class','order type'],
   anio:        ['año inserción','ano insercion','año insercion','ano inserción','año'],
   mes:         ['mes inserción','mes insercion','mes'],
@@ -240,6 +241,18 @@ const HEADER_ALIASES = {
   marca:       ['marca'],
   comercial:   ['comercial']
 };
+
+// Mapea el valor de la columna ÁREAS del Excel de Programática a nuestro equipo interno.
+// Si aparece un valor no contemplado, devuelve null y la fila se excluye (ver processProgramatica).
+function mapAreaProgToTeam(rawArea){
+  const n=normalize(rawArea);
+  if(n.includes('programat')) return 'Programática';
+  if(n.includes('lujo')) return 'Madrid';
+  if(n.includes('estilo de vida')) return 'Madrid';
+  if(n.includes('barcelona')) return 'Barcelona';
+  if(n.includes('internacional')) return 'Internacional';
+  return null;
+}
 
 function normalize(str){
   return String(str||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
@@ -423,6 +436,7 @@ function processProgramatica(rows,canal,filename,fecha){
   const colImporteAnt=findColIndex(hr,HEADER_ALIASES.importeAnt);
   const colAnunciante=findColIndex(hr,HEADER_ALIASES.anunciante);
   const colMarca=findColIndex(hr,HEADER_ALIASES.marca);
+  const colAreas=findColIndex(hr,HEADER_ALIASES.areasProg);
   if(colSector===-1||colAnio===-1){markCanalPending(canal);return;}
   for(let i=1;i<rows.length;i++){
     const row=rows[i];
@@ -435,6 +449,12 @@ function processProgramatica(rows,canal,filename,fecha){
     // que no se añaden como fila nueva ni entran en la resta de "Con Programática" (evita
     // restar de más a VENDORS). Ver estructura-excel-programatica.txt.
     if(!rawSec||normalize(sector)==='vendors') continue;
+    const rawArea=colAreas!==-1?String(row[colAreas]||'').trim():'';
+    const team=mapAreaProgToTeam(rawArea);
+    if(!team){
+      console.warn('[Programática] Valor de ÁREAS no reconocido, fila excluida:',rawArea||'(vacío)');
+      continue;
+    }
     const anio=parseInt(row[colAnio],10);
     const mes=colMes!==-1?parseMonth(row[colMes]):null;
     if(isNaN(anio)||anio<2000||anio>2100) continue;
@@ -443,7 +463,7 @@ function processProgramatica(rows,canal,filename,fecha){
     else if(anio===2025&&colImporteAnt!==-1) importe=parseFloat(String(row[colImporteAnt]).replace(',','.'))||0;
     if(importe===0) continue;
     if(mes!==null) hasMesColumn=true;
-    DATA_PROG.push({sector,team:'Programática',anio,mes,importe,canal:'Programatica',anunciante,marca,comercial:''});
+    DATA_PROG.push({sector,team,anio,mes,importe,canal:'Programatica',anunciante,marca,comercial:''});
   }
   rebuildYears();
   markCanalLoaded(canal,filename,fecha);
@@ -457,7 +477,7 @@ function rebuildYears(){
 }
 function getEffectiveData(){
   if(progMode==='sin') return DATA;
-  const antiVendors=DATA_PROG.map(d=>({sector:'VENDORS',team:'Programática',anio:d.anio,mes:d.mes,importe:-d.importe,canal:'__antivendors',anunciante:'',marca:'',comercial:''}));
+  const antiVendors=DATA_PROG.map(d=>({sector:'VENDORS',team:d.team,anio:d.anio,mes:d.mes,importe:-d.importe,canal:'__antivendors',anunciante:'',marca:'',comercial:''}));
   return [...DATA,...DATA_PROG,...antiVendors];
 }
 function setProgMode(mode){
@@ -507,14 +527,19 @@ function switchTab(tab,el){
 function getDataForTab(tab){
   const effective=getEffectiveData();
   if(tab==='todos') return effective;
-  if(tab==='madrid-lujo') return DATA.filter(d=>d.team==='Madrid');
-  if(tab==='madrid-lifestyle') return DATA.filter(d=>d.team==='Madrid');
-  if(tab==='barcelona') return DATA.filter(d=>d.team==='Barcelona');
-  if(tab==='internacional') return DATA.filter(d=>d.team==='Internacional');
+  const progByTeam=(teamName)=>{
+    if(progMode==='sin') return [];
+    const rows=DATA_PROG.filter(d=>d.team===teamName);
+    const av=rows.map(d=>({sector:'VENDORS',team:teamName,anio:d.anio,mes:d.mes,importe:-d.importe,canal:'__antivendors',anunciante:'',marca:'',comercial:''}));
+    return [...rows,...av];
+  };
+  if(tab==='madrid-lujo') return [...DATA.filter(d=>d.team==='Madrid'),...progByTeam('Madrid')];
+  if(tab==='madrid-lifestyle') return [...DATA.filter(d=>d.team==='Madrid'),...progByTeam('Madrid')];
+  if(tab==='barcelona') return [...DATA.filter(d=>d.team==='Barcelona'),...progByTeam('Barcelona')];
+  if(tab==='internacional') return [...DATA.filter(d=>d.team==='Internacional'),...progByTeam('Internacional')];
   if(tab==='programatica'){
     if(progMode==='sin') return DATA.filter(d=>d.team==='Programática');
-    const av=DATA_PROG.map(d=>({sector:'VENDORS',team:'Programática',anio:d.anio,mes:d.mes,importe:-d.importe,canal:'__antivendors',anunciante:'',marca:'',comercial:''}));
-    return [...DATA.filter(d=>d.team==='Programática'),...DATA_PROG,...av];
+    return [...DATA.filter(d=>d.team==='Programática'),...progByTeam('Programática')];
   }
   return effective;
 }
@@ -597,10 +622,13 @@ function calcPct(val,prevVal){
 function updateBadges(){
   const effective=getEffectiveData();
   const allS=new Set(effective.map(d=>d.sector));
-  const madS=new Set(DATA.filter(d=>d.team==='Madrid').map(d=>d.sector));
-  const barS=new Set(DATA.filter(d=>d.team==='Barcelona').map(d=>d.sector));
-  const intS=new Set(DATA.filter(d=>d.team==='Internacional').map(d=>d.sector));
-  const progData=progMode==='con'?[...DATA.filter(d=>d.team==='Programática'),...DATA_PROG]:DATA.filter(d=>d.team==='Programática');
+  const progMadrid=progMode==='con'?DATA_PROG.filter(d=>d.team==='Madrid'):[];
+  const progBarcelona=progMode==='con'?DATA_PROG.filter(d=>d.team==='Barcelona'):[];
+  const progInternacional=progMode==='con'?DATA_PROG.filter(d=>d.team==='Internacional'):[];
+  const madS=new Set([...DATA.filter(d=>d.team==='Madrid'),...progMadrid].map(d=>d.sector));
+  const barS=new Set([...DATA.filter(d=>d.team==='Barcelona'),...progBarcelona].map(d=>d.sector));
+  const intS=new Set([...DATA.filter(d=>d.team==='Internacional'),...progInternacional].map(d=>d.sector));
+  const progData=progMode==='con'?[...DATA.filter(d=>d.team==='Programática'),...DATA_PROG.filter(d=>d.team==='Programática')]:DATA.filter(d=>d.team==='Programática');
   const progS=new Set(progData.map(d=>d.sector));
   const lujoF=new Set(SECTORES_MADRID_LUJO.map(normalize));
   const lifeF=new Set(SECTORES_MADRID_LIFESTYLE.map(normalize));
