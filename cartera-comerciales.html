@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Análisis Comerciales</title>
+<title>Cartera Comercial</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
@@ -89,6 +89,10 @@
   .canal-weight-note{font-size:11px;color:var(--muted);margin-top:8px;text-align:right;}
   table.pm-family-table{margin-top:20px;}
   table.pm-family-table tbody td:first-child{color:var(--text);font-weight:400;}
+  table.cartera-table{table-layout:fixed;}
+  table.cartera-table th:nth-child(1),table.cartera-table td:nth-child(1){width:35%;}
+  table.cartera-table th:nth-child(2),table.cartera-table td:nth-child(2){width:40%;text-align:left;}
+  table.cartera-table th:nth-child(3),table.cartera-table td:nth-child(3){width:25%;}
   table.alerts-table tbody td{font-size:11.5px;}
   table.alerts-table tbody td:first-child{font-size:12.5px;}
   .pm-group-header td{background:#eef2f7;font-weight:700;color:var(--navy);text-align:left !important;font-size:12px;padding:8px 8px !important;}
@@ -105,29 +109,12 @@
   .alert-shared-icon{font-size:11px;filter:grayscale(0);}
   .alert-shared-badge{color:#9333ea;font-weight:900;font-size:15px;margin-right:2px;}
   .pm-shared-badge{color:#9333ea;font-weight:700;font-size:10.5px;margin-right:5px;background:#f3e8ff;border-radius:4px;padding:1px 4px;white-space:nowrap;}
-
-  /* ── Bloque Anunciantes por Sectores ── */
-  .sector-block{margin-top:24px;}
-  .sector-btns{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px;}
-  .sector-btn{padding:7px 14px;border-radius:16px;border:1px solid var(--border);background:#f4f6f9;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--navy);user-select:none;transition:.15s;}
-  .sector-btn:hover{border-color:var(--accent);}
-  .sector-btn.active{background:var(--navy);border-color:var(--navy);color:#fff;}
-  .sector-empty-hint{color:var(--muted);font-size:12.5px;font-style:italic;padding:16px 2px;}
-  table.sector-table thead th:first-child{text-align:left;}
-  table.sector-table tbody tr.sector-anun-row{cursor:pointer;}
-  table.sector-table tbody tr.sector-anun-row.dimmed td{color:var(--muted) !important;opacity:.5;}
-  table.sector-table tbody tr.sector-anun-row.dimmed:hover td{opacity:.75;}
-  .sector-toggle{display:inline-block;width:10px;font-size:9px;margin-right:7px;color:var(--muted);transition:transform .15s;}
-  .sector-toggle.open{transform:rotate(90deg);}
-  tr.sector-pub-row td{background:#fff4dd;font-size:11.5px;}
-  table.sector-table tbody tr.sector-pub-row:hover td{background:#ffecc2;}
-  tr.sector-pub-row td:first-child{padding-left:33px !important;font-weight:400;color:var(--text);}
 </style>
 </head>
 <body>
 <header>
   <div>
-    <h1>Ingresos por Comercial</h1>
+    <h1>Cartera Comercial</h1>
     <div class="subtitle">Carga el Excel para ver el desglose por comercial</div>
     <div class="fechas-wrap" id="fechasWrap" style="display:none"></div>
   </div>
@@ -194,30 +181,6 @@
   <div id="blocksContainer">
     <div class="empty-state"><p>📊 <b>Sin datos</b></p><p>Esperando la carga automática de los Excel…</p></div>
   </div>
-
-  <div id="sectorBlock" class="block-card sector-block" style="display:none">
-    <div class="block-card-title" style="display:flex;align-items:center;justify-content:space-between;">
-      <span>🏷️ Anunciantes por Sectores</span>
-      <div>
-        <button id="sectorPrintBtn" onclick="printSectorData(false)" style="display:none;padding:6px 14px;border-radius:8px;border:1px solid #cbd5e1;background:#f8fafc;font-size:12px;font-weight:600;cursor:pointer;color:#1e293b;margin-right:6px;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'">🖨️ Resumen</button>
-        <button id="sectorPrintDetailBtn" onclick="printSectorData(true)" style="display:none;padding:6px 14px;border-radius:8px;border:1px solid #cbd5e1;background:#f8fafc;font-size:12px;font-weight:600;cursor:pointer;color:#1e293b;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'">🖨️ Detalle completo</button>
-      </div>
-    </div>
-    <div id="sectorMonthFilter" class="month-filter" style="display:none">
-      <span class="mf-label">Meses:</span>
-      <div class="mf-chips" id="sectorMfChips"></div>
-      <div class="mf-actions">
-        <button class="mf-btn" id="sectorMfNone" onclick="setSectorMonthMode('none')">Ninguno</button>
-        <button class="mf-btn active" id="sectorMfClosed" onclick="setSectorMonthMode('closed')">Cerrados</button>
-        <button class="mf-btn" id="sectorMfAll" onclick="setSectorMonthMode('all')">Todos</button>
-      </div>
-    </div>
-    <div class="sector-btns" id="sectorBtns"></div>
-    
-    <div id="sectorAdvertisersContainer">
-      <div class="sector-empty-hint">Selecciona un sector para ver sus anunciantes.</div>
-    </div>
-  </div>
 </main>
 
 <script>
@@ -230,13 +193,8 @@ let selectedMonths = new Set();
 let activeTab = 'todos';
 let selectedComercial = '';
 let ALL_COMERCIALES = [];
-let sectorSelectedMonths = new Set();
-let selectedSector = '';
-
-let expandedAnunciantesSector = new Set();
-let expandedAnunciantesOport = new Set();
 const CANAL_FECHAS = {};
-let CARTERA_BY_COMERCIAL = {}; // normalize(comercial) -> Map(normalize(anunciante) -> anunciante original)
+let CARTERA_BY_COMERCIAL = {}; // normalize(comercial) -> array de {anunciante, marca}
 
 const EXCEL_URLS = {
   Digital:     'https://hearstspain-my.sharepoint.com/personal/japaricio_hearst_es/_layouts/15/download.aspx?share=IQBtUVlYDjlRRoCaM7gsBE1eATJ8miXAVtnTs6Qcuioee-Y',
@@ -383,19 +341,22 @@ function processCarteraWorkbook(data,filename){
   const sheet=wb.Sheets[sheetName];
   const rows=XLSX.utils.sheet_to_json(sheet,{header:1,defval:''});
   if(rows.length===0){markCarteraPending();return;}
+  // Columnas: A=Anunciante, B=Marca, C=Comercial
   let startRow=0;
-  const h0=normalize(rows[0][0]), h1=normalize(rows[0][1]);
-  if(h0==='anunciante'||h1==='comercial') startRow=1;
+  const h0=normalize(rows[0][0]), h1=normalize(rows[0][1]), h2=normalize(rows[0][2]);
+  if(h0==='anunciante'||h1==='marca'||h2==='comercial') startRow=1;
   const byCom={};
   let count=0;
   for(let i=startRow;i<rows.length;i++){
     const anun=String(rows[i][0]||'').trim();
-    const com=String(rows[i][1]||'').trim();
+    const marca=String(rows[i][1]||'').trim();
+    const com=String(rows[i][2]||'').trim();
     if(!anun||!com) continue;
     const key=normalize(com);
     if(!byCom[key]) byCom[key]=new Map();
-    if(!byCom[key].has(normalize(anun))){
-      byCom[key].set(normalize(anun),anun);
+    const itemKey=normalize(anun)+'|||'+normalize(marca);
+    if(!byCom[key].has(itemKey)){
+      byCom[key].set(itemKey,{anunciante:anun,marca:marca});
       count++;
     }
   }
@@ -498,11 +459,8 @@ function processWorkbook(data,canal,filename){
   markCanalLoaded(canal,filename,fecha);
   initMonthFilter();
   populateComercialList();
-  initSectorMonthFilter();
-  populateSectorButtons();
   showUI();
   render();
-  renderSectorAdvertisers();
 }
 function rebuildYears(){
   const aniosSet=new Set(DATA.map(d=>d.anio));
@@ -533,7 +491,6 @@ function onYearChange(){
   updateVisibleYears();
   populateComercialList();
   render();
-  renderSectorAdvertisers();
 }
 function getEffectiveData(){
   return DATA;
@@ -542,8 +499,6 @@ function showUI(){
   document.getElementById('toolbar').style.display='flex';
   document.getElementById('tabBar').style.display='flex';
   if(hasMesColumn) document.getElementById('monthFilter').style.display='flex';
-  document.getElementById('sectorBlock').style.display='block';
-  if(hasMesColumn) document.getElementById('sectorMonthFilter').style.display='flex';
 }
 function initMonthFilter(){
   if(!hasMesColumn) return;
@@ -569,370 +524,6 @@ function initMonthFilter(){
     };
     chips.appendChild(chip);
   });
-}
-
-// ---- BLOQUE INDEPENDIENTE: ANUNCIANTES POR SECTORES ----
-function updateSectorMonthBtns(mode){
-  document.getElementById('sectorMfNone').classList.toggle('active', mode==='none');
-  document.getElementById('sectorMfClosed').classList.toggle('active', mode==='closed');
-  document.getElementById('sectorMfAll').classList.toggle('active', mode==='all');
-}
-function initSectorMonthFilter(){
-  if(!hasMesColumn) return;
-  const allMonths=new Set(DATA.map(d=>d.mes).filter(m=>m!==null));
-  const sorted=Array.from(allMonths).sort((a,b)=>a-b);
-
-  if(sectorSelectedMonths.size===0){
-    sectorSelectedMonths=getClosedMonths();
-  }
-
-  const chips=document.getElementById('sectorMfChips');
-  chips.innerHTML='';
-  sorted.forEach(m=>{
-    const chip=document.createElement('div');
-    chip.className='mf-chip'+(sectorSelectedMonths.has(m)?' active':'');
-    chip.textContent=MES_ABBR[m-1];
-    chip.onclick=()=>{
-      if(sectorSelectedMonths.has(m)) sectorSelectedMonths.delete(m); else sectorSelectedMonths.add(m);
-      chip.classList.toggle('active',sectorSelectedMonths.has(m));
-      updateSectorMonthBtns('');
-      renderSectorAdvertisers();
-    };
-    chips.appendChild(chip);
-  });
-}
-function setSectorMonthMode(mode){
-  const allMonths=new Set(DATA.map(d=>d.mes).filter(m=>m!==null));
-  const sorted=Array.from(allMonths).sort((a,b)=>a-b);
-  const chips=document.getElementById('sectorMfChips');
-
-  if(mode==='none'){
-    sectorSelectedMonths=new Set();
-  } else if(mode==='closed'){
-    sectorSelectedMonths=getClosedMonths();
-  } else if(mode==='all'){
-    sectorSelectedMonths=new Set(sorted);
-  }
-
-  chips.querySelectorAll('.mf-chip').forEach((c,i)=>{
-    c.classList.toggle('active', sectorSelectedMonths.has(sorted[i]));
-  });
-  updateSectorMonthBtns(mode);
-  renderSectorAdvertisers();
-}
-function populateSectorButtons(){
-  const set=new Set(DATA.map(d=>d.sector).filter(Boolean));
-  const sectors=Array.from(set).sort((a,b)=>a.localeCompare(b,'es'));
-  const wrap=document.getElementById('sectorBtns');
-  wrap.innerHTML=sectors.map(s=>`<div class="sector-btn">${s}</div>`).join('');
-  wrap.querySelectorAll('.sector-btn').forEach((btn,i)=>{
-    const s=sectors[i];
-    btn.classList.toggle('active', normalize(s)===normalize(selectedSector));
-    btn.addEventListener('click',()=>{
-      selectedSector=(normalize(selectedSector)===normalize(s))?'':s;
-      wrap.querySelectorAll('.sector-btn').forEach(b=>b.classList.remove('active'));
-      if(selectedSector) btn.classList.add('active');
-      expandedAnunciantesSector=new Set();
-      expandedAnunciantesOport=new Set();
-      renderSectorAdvertisers();
-    });
-  });
-}
-function renderSectorAdvertisers(){
-  const container=document.getElementById('sectorAdvertisersContainer');
-  if(!container) return;
-  if(!selectedSector){
-    container.innerHTML='<div class="sector-empty-hint">Selecciona un sector para ver sus anunciantes.</div>';
-    const pb=document.getElementById('sectorPrintBtn'); if(pb) pb.style.display='none';
-    const pb2=document.getElementById('sectorPrintDetailBtn'); if(pb2) pb2.style.display='none';
-    return;
-  }
-  const secNorm=normalize(selectedSector);
-  let rows=DATA.filter(d=>d.canal!=='__antivendors'&&normalize(d.sector)===secNorm);
-  const allSectorRows=rows.slice(); // Keep all rows before filtering by comercial
-  if(selectedComercial) rows=rows.filter(d=>normalize(d.comercial)===normalize(selectedComercial));
-  if(rows.length===0){
-    container.innerHTML='<div class="sector-empty-hint">Sin datos para este sector.</div>';
-    const pb=document.getElementById('sectorPrintBtn'); if(pb) pb.style.display='none';
-    const pb2=document.getElementById('sectorPrintDetailBtn'); if(pb2) pb2.style.display='none';
-    return;
-  }
-
-  const lastYear=selectedYear;
-  const prevYear=selectedYear-1;
-  const monthsFilter=(hasMesColumn&&sectorSelectedMonths.size>0)?sectorSelectedMonths:null;
-
-  const sumFor=(rs,anio)=>rs.reduce((s,d)=>{
-    if(d.anio!==anio) return s;
-    if(monthsFilter&&(d.mes===null||!monthsFilter.has(d.mes))) return s;
-    return s+d.importe;
-  },0);
-
-  const byAnun={};
-  rows.forEach(d=>{
-    const key=d.anunciante||'(sin anunciante)';
-    if(!byAnun[key]) byAnun[key]=[];
-    byAnun[key].push(d);
-  });
-
-  const items=Object.keys(byAnun).map(anun=>{
-    const ars=byAnun[anun];
-    return {anunciante:anun, rows:ars, last:sumFor(ars,lastYear), prev:sumFor(ars,prevYear)};
-  }).filter(it=>it.last!==0||it.prev!==0)
-    .sort((a,b)=>(a.last-a.prev)-(b.last-b.prev));
-
-  if(items.length===0){
-    container.innerHTML='<div class="sector-empty-hint">Sin anunciantes con ingreso en el periodo seleccionado.</div>';
-    const pb=document.getElementById('sectorPrintBtn'); if(pb) pb.style.display='none';
-    const pb2=document.getElementById('sectorPrintDetailBtn'); if(pb2) pb2.style.display='none';
-    return;
-  }
-
-  const monthsLabel=monthsFilter?monthsRangeLabel(monthsFilter):'';
-  const lastLabel=monthsFilter?`${lastYear} (${monthsLabel})`:`${lastYear}`;
-  const prevLabel=monthsFilter?`${prevYear} (${monthsLabel})`:`${prevYear}`;
-
-  // --- Build "otros comerciales" data for each anunciante ---
-  const otrosComByAnun={};
-  if(selectedComercial){
-    const comNorm=normalize(selectedComercial);
-    allSectorRows.filter(d=>(d.anio===lastYear||d.anio===prevYear)&&normalize(d.comercial)!==comNorm).forEach(d=>{
-      const key=d.anunciante||'(sin anunciante)';
-      if(!otrosComByAnun[key]) otrosComByAnun[key]=[];
-      otrosComByAnun[key].push(d);
-    });
-  }
-
-  let html=`<table class="mini-canal-table sector-table">
-    <thead><tr><th>Anunciante</th><th>${prevLabel}</th><th>${lastLabel}</th><th>%</th></tr></thead>
-    <tbody>`;
-
-  items.forEach((it,idx)=>{
-    const pct=calcPct(it.last,it.prev);
-    const cls=pct===null?'flat':(pct>0.5?'up':(pct<-0.5?'down':'flat'));
-    const isOpen=expandedAnunciantesSector.has(it.anunciante);
-    const dimCls=(expandedAnunciantesSector.size>0&&!isOpen)?' dimmed':'';
-    html+=`<tr class="sector-anun-row main-anun-row${dimCls}" data-idx="${idx}">
-      <td><span class="sector-toggle${isOpen?' open':''}">▶</span>${it.anunciante}</td>
-      <td>${formatEUR(it.prev)}</td>
-      <td>${formatEUR(it.last)}</td>
-      <td class="pct ${cls}">${formatPct(pct)} <span class="canal-weight">(${formatDeltaEUR(it.last-it.prev)})</span></td>
-    </tr>`;
-
-    // Sub-rows: publicaciones del comercial
-    const byPub={};
-    it.rows.forEach(d=>{
-      const pk=d.publicacion||'(sin publicación)';
-      if(!byPub[pk]) byPub[pk]=[];
-      byPub[pk].push(d);
-    });
-    const pubItems=Object.keys(byPub).map(pub=>{
-      const prs=byPub[pub];
-      return {pub, pLast:sumFor(prs,lastYear), pPrev:sumFor(prs,prevYear)};
-    }).filter(p=>p.pLast!==0||p.pPrev!==0)
-      .sort((a,b)=>(a.pLast-a.pPrev)-(b.pLast-b.pPrev));
-
-    pubItems.forEach(p=>{
-      const pPct=calcPct(p.pLast,p.pPrev);
-      const pCls=pPct===null?'flat':(pPct>0.5?'up':(pPct<-0.5?'down':'flat'));
-      html+=`<tr class="sector-pub-row" data-parent-idx="${idx}" style="display:${isOpen?'table-row':'none'}">
-        <td>${p.pub}</td>
-        <td>${formatEUR(p.pPrev)}</td>
-        <td>${formatEUR(p.pLast)}</td>
-        <td class="pct ${pCls}">${formatPct(pPct)} <span class="canal-weight">(${formatDeltaEUR(p.pLast-p.pPrev)})</span></td>
-      </tr>`;
-    });
-
-    // Sub-row: otros comerciales con este mismo anunciante (SIEMPRE VISIBLE)
-    if(selectedComercial && otrosComByAnun[it.anunciante]){
-      const otrosRows=otrosComByAnun[it.anunciante];
-      const otrosPrev=otrosRows.reduce((s,d)=>{if(d.anio!==prevYear) return s; if(monthsFilter&&(d.mes===null||!monthsFilter.has(d.mes))) return s; return s+d.importe;},0);
-      const otrosLast=otrosRows.reduce((s,d)=>{if(d.anio!==lastYear) return s; if(monthsFilter&&(d.mes===null||!monthsFilter.has(d.mes))) return s; return s+d.importe;},0);
-      if(otrosPrev!==0||otrosLast!==0){
-        const otrosCom=Array.from(new Set(otrosRows.filter(d=>d.comercial).map(d=>d.comercial))).sort().join(', ');
-        const oPct=calcPct(otrosLast,otrosPrev);
-        const oCls=oPct===null?'flat':(oPct>0.5?'up':(oPct<-0.5?'down':'flat'));
-        html+=`<tr class="sector-otros-row" style="background:#f3e8ff;">
-          <td style="font-style:italic;color:#7c3aed;padding-left:28px !important;font-size:11.5px;">⚡ Otros comerciales: ${otrosCom}</td>
-          <td style="color:#7c3aed;font-size:11.5px;">${formatEUR(otrosPrev)}</td>
-          <td style="color:#7c3aed;font-size:11.5px;">${formatEUR(otrosLast)}</td>
-          <td class="pct ${oCls}" style="color:#7c3aed;font-size:11.5px;">${formatPct(oPct)} <span class="canal-weight">(${formatDeltaEUR(otrosLast-otrosPrev)})</span></td>
-        </tr>`;
-      }
-    }
-  });
-
-  html+=`</tbody></table>`;
-
-  // ── Oportunidades ──
-  let oportunidades=[];
-  if(selectedComercial){
-    const comNorm=normalize(selectedComercial);
-    const oportunidadesRows=allSectorRows.filter(d=>normalize(d.comercial)!==comNorm&&(d.anio===lastYear||d.anio===prevYear));
-    const myAnunciantes=new Set(items.map(it=>normalize(it.anunciante)));
-    const byAnunOtros={};
-    oportunidadesRows.forEach(d=>{
-      const key=d.anunciante||'(sin anunciante)';
-      if(myAnunciantes.has(normalize(key))) return;
-      if(!byAnunOtros[key]) byAnunOtros[key]=[];
-      byAnunOtros[key].push(d);
-    });
-    oportunidades=Object.keys(byAnunOtros).map(anun=>{
-      const ars=byAnunOtros[anun];
-      const oPrev=ars.reduce((s,d)=>{
-        if(d.anio!==prevYear) return s;
-        if(monthsFilter&&(d.mes===null||!monthsFilter.has(d.mes))) return s;
-        return s+d.importe;
-      },0);
-      const oLast=ars.reduce((s,d)=>{
-        if(d.anio!==lastYear) return s;
-        if(monthsFilter&&(d.mes===null||!monthsFilter.has(d.mes))) return s;
-        return s+d.importe;
-      },0);
-      const comerciales=Array.from(new Set(ars.filter(d=>d.comercial).map(d=>d.comercial))).sort().join(', ');
-      const isMadrid=ars.some(d=>d.team==='Madrid');
-      return {anunciante:anun, prev:oPrev, last:oLast, comerciales, isMadrid, rows:ars};
-    }).filter(it=>it.prev>0&&it.last<=it.prev)
-      .sort((a,b)=>{ if(a.isMadrid&&!b.isMadrid) return -1; if(!a.isMadrid&&b.isMadrid) return 1; return (a.last-a.prev)-(b.last-b.prev); });
-
-    if(oportunidades.length>0){
-      html+=`<div style="margin-top:28px;padding-top:18px;border-top:2px dashed #e2e8f0;">
-        <div style="font-size:14px;font-weight:700;color:#9333ea;margin-bottom:10px;">🎯 Oportunidades: anunciantes del sector con ingreso en ${prevYear} (otros comerciales) que en ${lastYear} han bajado o desaparecido</div>
-        <table class="mini-canal-table sector-table">
-        <thead><tr><th>Anunciante</th><th>${prevLabel}</th><th>${lastLabel}</th><th>%</th></tr></thead>
-        <tbody>`;
-      oportunidades.forEach((it,oIdx)=>{
-        const pct=calcPct(it.last,it.prev);
-        const cls=pct===null?'flat':(pct>0.5?'up':(pct<-0.5?'down':'flat'));
-        const rowBg=it.isMadrid?'background:#e8f4fd;':'';
-        const isOpenO=expandedAnunciantesOport.has(it.anunciante);
-        const dimClsO=(expandedAnunciantesOport.size>0&&!isOpenO)?' dimmed':'';
-        html+=`<tr class="sector-anun-row oport-anun-row${dimClsO}" data-oport-idx="${oIdx}" style="${rowBg}">
-          <td><span class="sector-toggle${isOpenO?' open':''}">▶</span>${it.anunciante}${it.comerciales?' <span style="font-size:11px;color:#9333ea;font-weight:400;">('+it.comerciales+')</span>':''}</td>
-          <td>${formatEUR(it.prev)}</td>
-          <td>${formatEUR(it.last)}</td>
-          <td class="pct ${cls}">${formatPct(pct)} <span class="canal-weight">(${formatDeltaEUR(it.last-it.prev)})</span></td>
-        </tr>`;
-
-        // Sub-rows by publicacion for oportunidades
-        const byPubO={};
-        it.rows.forEach(d=>{
-          const pk=d.publicacion||'(sin publicación)';
-          if(!byPubO[pk]) byPubO[pk]=[];
-          byPubO[pk].push(d);
-        });
-        const pubItemsO=Object.keys(byPubO).map(pub=>{
-          const prs=byPubO[pub];
-          const pLast=prs.reduce((s,d)=>{if(d.anio!==lastYear) return s; if(monthsFilter&&(d.mes===null||!monthsFilter.has(d.mes))) return s; return s+d.importe;},0);
-          const pPrev=prs.reduce((s,d)=>{if(d.anio!==prevYear) return s; if(monthsFilter&&(d.mes===null||!monthsFilter.has(d.mes))) return s; return s+d.importe;},0);
-          return {pub, pLast, pPrev};
-        }).filter(p=>p.pLast!==0||p.pPrev!==0)
-          .sort((a,b)=>(a.pLast-a.pPrev)-(b.pLast-b.pPrev));
-
-        pubItemsO.forEach(p=>{
-          const pPct=calcPct(p.pLast,p.pPrev);
-          const pCls=pPct===null?'flat':(pPct>0.5?'up':(pPct<-0.5?'down':'flat'));
-          html+=`<tr class="sector-pub-row oport-pub-row" data-oport-parent-idx="${oIdx}" style="display:${isOpenO?'table-row':'none'}">
-            <td>${p.pub}</td>
-            <td>${formatEUR(p.pPrev)}</td>
-            <td>${formatEUR(p.pLast)}</td>
-            <td class="pct ${pCls}">${formatPct(pPct)} <span class="canal-weight">(${formatDeltaEUR(p.pLast-p.pPrev)})</span></td>
-          </tr>`;
-        });
-      });
-      html+=`</tbody></table></div>`;
-    }
-  }
-
-  container.innerHTML=html;
-
-  // Click handlers for main anunciante rows
-  container.querySelectorAll('.main-anun-row').forEach(row=>{
-    row.addEventListener('click',()=>{
-      const idx=row.getAttribute('data-idx');
-      const anun=items[idx].anunciante;
-      if(expandedAnunciantesSector.has(anun)) expandedAnunciantesSector.delete(anun);
-      else expandedAnunciantesSector.add(anun);
-      renderSectorAdvertisers();
-    });
-  });
-
-  // Click handlers for oportunidades rows
-  container.querySelectorAll('.oport-anun-row').forEach(row=>{
-    row.addEventListener('click',()=>{
-      const oIdx=row.getAttribute('data-oport-idx');
-      const anun=oportunidades[oIdx].anunciante;
-      if(expandedAnunciantesOport.has(anun)) expandedAnunciantesOport.delete(anun);
-      else expandedAnunciantesOport.add(anun);
-      renderSectorAdvertisers();
-    });
-  });
-
-  // Show/hide print buttons
-  const printBtn=document.getElementById('sectorPrintBtn');
-  if(printBtn) printBtn.style.display=(items.length>0)?'inline-block':'none';
-  const printDetailBtn=document.getElementById('sectorPrintDetailBtn');
-  if(printDetailBtn) printDetailBtn.style.display=(items.length>0)?'inline-block':'none';
-}
-
-function printSectorData(withDetail){
-  const container=document.getElementById('sectorAdvertisersContainer');
-  if(!container) return;
-  const comercialName=selectedComercial||'Todos';
-  const sectorName=selectedSector||'';
-  const yearLabel=selectedYear;
-  const title=`Anunciantes por Sector: ${sectorName}`;
-  const subtitle=`Comercial: ${comercialName} | Año: ${yearLabel}`;
-  
-  // Clone the container
-  const clone=container.cloneNode(true);
-  
-  if(withDetail){
-    // Force all pub-rows to be visible
-    clone.querySelectorAll('.sector-pub-row').forEach(row=>row.style.display='table-row');
-    // Expand all toggle icons
-    clone.querySelectorAll('.sector-toggle').forEach(el=>{el.classList.add('open');});
-  } else {
-    // Remove all pub-rows for summary view
-    clone.querySelectorAll('.sector-pub-row').forEach(row=>row.remove());
-    // Remove toggle icons
-    clone.querySelectorAll('.sector-toggle').forEach(el=>el.remove());
-  }
-  // Remove dimmed class
-  clone.querySelectorAll('.sector-anun-row.dimmed').forEach(row=>row.classList.remove('dimmed'));
-  
-  const detailLabel=withDetail?' (Detalle con publicaciones)':' (Resumen)';
-  
-  const printWindow=window.open('','_blank','width=900,height=700');
-  printWindow.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
-    <style>
-      body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:30px;color:#1e293b;}
-      h1{font-size:20px;margin:0 0 4px;}
-      .subtitle{font-size:13px;color:#64748b;margin-bottom:20px;}
-      table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:24px;}
-      th{background:#f1f5f9;text-align:right;padding:8px 10px;border-bottom:2px solid #e2e8f0;font-weight:700;}
-      th:first-child{text-align:left;}
-      td{padding:7px 10px;border-bottom:1px solid #f1f5f9;text-align:right;}
-      td:first-child{text-align:left;}
-      .sector-pub-row td{background:#fff4dd;font-size:11px;}
-      .sector-pub-row td:first-child{padding-left:33px !important;}
-      .oport-pub-row td{background:#fff4dd;font-size:11px;}
-      .oport-pub-row td:first-child{padding-left:33px !important;}
-      .sector-toggle{display:inline-block;width:10px;font-size:9px;margin-right:7px;color:#94a3b8;}
-      .sector-toggle.open{transform:rotate(90deg);}
-      .pct.up{color:#16a34a;}
-      .pct.down{color:#dc2626;}
-      .pct.flat{color:#64748b;}
-      .canal-weight{font-size:10.5px;color:#64748b;}
-      @media print{body{padding:15px;} @page{margin:1.5cm;}}
-    </style>
-  </head><body>
-    <h1>${title}${detailLabel}</h1>
-    <div class="subtitle">${subtitle}</div>
-    ${clone.innerHTML}
-  </body></html>`);
-  printWindow.document.close();
-  setTimeout(()=>printWindow.print(),400);
 }
 
 function switchTab(tab,el){
@@ -987,12 +578,10 @@ function onComercialInput(){
     selectedComercial=match;
     document.getElementById('comercialClearBtn').style.display='inline-block';
     render();
-    renderSectorAdvertisers();
   } else {
     selectedComercial='';
     document.getElementById('comercialClearBtn').style.display=val?'inline-block':'none';
     render();
-    renderSectorAdvertisers();
   }
 }
 function clearComercial(){
@@ -1000,7 +589,6 @@ function clearComercial(){
   document.getElementById('comercialInput').value='';
   document.getElementById('comercialClearBtn').style.display='none';
   render();
-  renderSectorAdvertisers();
 }
 
 // ---- RENDER ----
@@ -1132,34 +720,50 @@ function render(){
     </tr>`;
   });
 
-  // rowsLastYear se reutiliza más abajo en el bloque de Alertas.
-  const rowsLastYear=filterRowsYear(rows,lastYear,showComparable?selectedMonths:null);
-
   // ---- Cartera real de anunciantes ----
-  // La cartera (Excel Anunciante→Comercial) es una asignación "de propiedad" independiente
-  // de la columna Comercial de los datos de ingresos: por eso, para cada anunciante de la
-  // cartera del comercial seleccionado, sumamos el ingreso TOTAL que ese anunciante ha
-  // supuesto para la compañía (todas las líneas que casen por Anunciante, sin filtrar por
-  // la columna Comercial), respetando eso sí la zona (tab) y el sector activos, y el
-  // periodo (año + meses) seleccionado — igual que el resto del dashboard.
-  const carteraScopeRows=tabData.filter(d=>d.canal!=='__antivendors'&&(!sectorFilter||sectorFilter.has(normalize(d.sector))));
+  // La cartera (Excel Anunciante+Marca→Comercial) es una asignación "de propiedad". Para cada
+  // anunciante(+marca) de la cartera del comercial seleccionado, sumamos el ingreso que ESE
+  // COMERCIAL ha generado con ese anunciante/marca (es decir, usamos `rows`, que ya está filtrado
+  // por comercial+zona+sector+canal, igual que el resto del dashboard) — no el ingreso total del
+  // anunciante para toda la compañía.
   const carteraKeyCom=normalize(selectedComercial);
   const carteraMap=CARTERA_BY_COMERCIAL[carteraKeyCom]||new Map();
+  const anunMarcaConDatosAlgunaVez=new Set(DATA.map(d=>normalize(d.anunciante)+'|||'+normalize(d.marca)));
   const anunciantesConDatosAlgunaVez=new Set(DATA.map(d=>normalize(d.anunciante)));
-  const carteraItems=Array.from(carteraMap.values()).map(anunOriginal=>{
+  const carteraItemsRaw=Array.from(carteraMap.values()).map(({anunciante:anunOriginal,marca:marcaOriginal})=>{
     const anunNorm=normalize(anunOriginal);
-    const subset=carteraScopeRows.filter(d=>normalize(d.anunciante)===anunNorm);
+    const marcaNorm=normalize(marcaOriginal);
+    const subset=rows.filter(d=>normalize(d.anunciante)===anunNorm&&(!marcaNorm||normalize(d.marca)===marcaNorm));
     const ingreso=showComparable?sumRows(subset,lastYear,selectedMonths):sumRows(subset,lastYear,null);
-    return {anunciante:anunOriginal,ingreso,sinDatos:!anunciantesConDatosAlgunaVez.has(anunNorm)};
-  }).sort((a,b)=>b.ingreso-a.ingreso);
+    const sinDatos=marcaNorm
+      ? !anunMarcaConDatosAlgunaVez.has(anunNorm+'|||'+marcaNorm)
+      : !anunciantesConDatosAlgunaVez.has(anunNorm);
+    return {anunciante:anunOriginal,anunNorm,marca:marcaOriginal,ingreso,sinDatos};
+  });
+  // Aglutinamos por anunciante: una sola fila por anunciante, con sus marcas seguidas
+  // (ordenadas alfabéticamente) y el ingreso sumado entre todas sus marcas.
+  const carteraPorAnunciante={};
+  carteraItemsRaw.forEach(it=>{
+    if(!carteraPorAnunciante[it.anunNorm]) carteraPorAnunciante[it.anunNorm]={anunciante:it.anunciante,marcas:[],ingreso:0,sinDatos:true};
+    const g=carteraPorAnunciante[it.anunNorm];
+    if(it.marca) g.marcas.push(it.marca);
+    g.ingreso+=it.ingreso;
+    if(!it.sinDatos) g.sinDatos=false;
+  });
+  const carteraItems=Object.values(carteraPorAnunciante).map(g=>({
+    anunciante:g.anunciante,
+    marca:g.marcas.length?g.marcas.slice().sort((a,b)=>a.localeCompare(b,'es')).join(', '):'—',
+    ingreso:g.ingreso,
+    sinDatos:g.sinDatos
+  })).sort((a,b)=>b.ingreso-a.ingreso);
   const carteraTotal=carteraItems.reduce((s,it)=>s+it.ingreso,0);
   const carteraConIngreso=carteraItems.filter(it=>it.ingreso!==0).length;
 
   const renderCarteraRows=items=>{
-    if(items.length===0) return `<tr><td colspan="2" class="pm-group-empty">Este comercial no tiene anunciantes asignados en la cartera</td></tr>`;
+    if(items.length===0) return `<tr><td colspan="3" class="pm-group-empty">Este comercial no tiene anunciantes asignados en la cartera</td></tr>`;
     return items.map(it=>{
-      const warn=it.sinDatos?'<span title="Este anunciante de la cartera no aparece nunca en los datos de ingresos cargados (revisa posibles diferencias de nombre)" style="color:var(--red);margin-right:5px;">⚠</span>':'';
-      return `<tr><td class="pm-prod-name">${warn}${it.anunciante}</td><td>${formatEUR(it.ingreso)}</td></tr>`;
+      const warn=it.sinDatos?'<span title="Este anunciante/marca de la cartera no aparece nunca en los datos de ingresos cargados (revisa posibles diferencias de nombre)" style="color:var(--red);margin-right:5px;">⚠</span>':'';
+      return `<tr><td class="pm-prod-name">${warn}${it.anunciante}</td><td>${it.marca||'—'}</td><td>${formatEUR(it.ingreso)}</td></tr>`;
     }).join('');
   };
 
@@ -1178,98 +782,72 @@ function render(){
         <div class="stat-value">${formatEUR(carteraTotal)}</div>
       </div>
     </div>
-    <table class="mini-canal-table pm-family-table">
-      <thead><tr><th>Anunciante</th><th>Ingreso (${lastYearLabel})</th></tr></thead>
+    <table class="mini-canal-table pm-family-table cartera-table">
+      <thead><tr><th>Anunciante</th><th>Marcas</th><th>Ingreso (${lastYearLabel})</th></tr></thead>
       <tbody>
         ${renderCarteraRows(carteraItems)}
       </tbody>
     </table>`;
 
-  // ---- Alertas: activaciones de bajo importe ----
-  // Familias que no queremos ver en Alertas (formatos programáticos/display/video,
-  // donde los importes bajos son habituales y no representan una alerta real).
-  const ALERTAS_FAMILIAS_EXCLUIDAS=['Display','Programatica Display Directo','Programatica Display Indirecto','Video','Video Programatico Directo','Video Programatico Indirecto'].map(normalize);
-  // Productos concretos que tampoco queremos ver (costes/gastos internos, no son activaciones reales).
-  const ALERTAS_PRODUCTOS_EXCLUIDOS=['COSTES CURATED','Gastos Ejecución (Production Cost)','Article (Production Cost)'].map(normalize);
-  const rowsAlertas=rowsLastYear.filter(d=>!ALERTAS_FAMILIAS_EXCLUIDAS.includes(normalize(d.familia))&&!ALERTAS_PRODUCTOS_EXCLUIDOS.includes(normalize(d.producto)));
-
-  // Igual que reparoKey, pero añadiendo el Producto a la clave: aquí sí nos interesa
-  // no mezclar en una sola línea neta dos productos distintos del mismo anunciante
-  // dentro de la misma publicación/marca/año, porque cada línea de la tabla de
-  // alertas debe mostrar un Producto concreto.
-  const reparoKeyProducto=d=>normalize(d.publicacion)+'|||'+normalize(d.anunciante)+'|||'+normalize(d.marca)+'|||'+normalize(d.producto)+'|||'+d.anio;
-  const buildAlertActivations=rs=>{
-    const map={};
-    rs.forEach(d=>{
-      const k=reparoKeyProducto(d);
-      if(!map[k]) map[k]={anunciante:d.anunciante||'—',marca:d.marca||'—',publicacion:d.publicacion||'—',producto:d.producto||'(sin producto)',sector:d.sector||'—',importe:0};
-      map[k].importe+=d.importe;
-    });
-    return Object.values(map).map(v=>({...v,importe:Math.round(v.importe*100)/100}));
-  };
-  const ALERT_RANGES=[
-    {label:'🔴 Activaciones a 0€',test:v=>v===0},
-    {label:'🟠 Activaciones de menos de 1.000€',test:v=>v>0&&v<=1000},
-    {label:'🟡 Activaciones de menos de 2.000€',test:v=>v>1000&&v<=2000},
-    {label:'🔵 Activaciones de menos de 3.000€',test:v=>v>2000&&v<=3000},
-    {label:'⚪ Activaciones de menos de 4.000€',test:v=>v>3000&&v<=4000}
-  ];
-  const sortAlertItems=items=>items.slice().sort((a,b)=>{
-    const p=a.producto.localeCompare(b.producto,'es');
-    if(p!==0) return p;
-    return a.anunciante.localeCompare(b.anunciante,'es');
+  // ---- Subbloque: anunciantes con ingreso de este comercial pero fuera de su cartera ----
+  // Agrupamos las líneas de `rows` (ya filtradas por este comercial) por Anunciante+Marca y
+  // nos quedamos con las combinaciones que NO están en la cartera de este comercial. Una entrada
+  // de cartera sin marca informada actúa como "comodín" para cualquier marca de ese anunciante.
+  const carteraBlanketAnunciantes=new Set(
+    Array.from(carteraMap.values()).filter(v=>!normalize(v.marca)).map(v=>normalize(v.anunciante))
+  );
+  const carteraKeysSet=new Set(
+    Array.from(carteraMap.values()).filter(v=>normalize(v.marca)).map(v=>normalize(v.anunciante)+'|||'+normalize(v.marca))
+  );
+  const byAnunMarca={};
+  rows.forEach(d=>{
+    const anunNorm=normalize(d.anunciante), marcaNorm=normalize(d.marca);
+    const key=anunNorm+'|||'+marcaNorm;
+    if(!byAnunMarca[key]) byAnunMarca[key]={anunciante:d.anunciante||'—',marca:d.marca||'—',anunNorm,marcaNorm,rowsArr:[]};
+    byAnunMarca[key].rowsArr.push(d);
   });
-  const alertActivations=buildAlertActivations(rowsAlertas);
-
-  // ---- Detección de "anunciante compartido" ----
-  // Buscamos, dentro de la misma zona/pestaña y mismo periodo filtrado (mismas exclusiones
-  // de familia/producto), si existe la MISMA línea exacta (Anunciante+Marca+Publicación+
-  // Producto+Importe) pero asociada a un Comercial distinto al seleccionado. Si es así,
-  // coloreamos el nombre del Anunciante para que salte a la vista.
-  const reparoKeyProductoComercial=d=>reparoKeyProducto(d)+'|||'+normalize(d.comercial);
-  const tabDataAlertas=filterRowsYear(tabData,lastYear,showComparable?selectedMonths:null)
-    .filter(d=>d.canal!=='__antivendors'
-      &&(!sectorFilter||sectorFilter.has(normalize(d.sector)))
-      &&!ALERTAS_FAMILIAS_EXCLUIDAS.includes(normalize(d.familia))
-      &&!ALERTAS_PRODUCTOS_EXCLUIDOS.includes(normalize(d.producto)));
-  const buildAllActivations=rs=>{
-    const map={};
-    rs.forEach(d=>{
-      const k=reparoKeyProductoComercial(d);
-      if(!map[k]) map[k]={anunciante:d.anunciante||'—',marca:d.marca||'—',publicacion:d.publicacion||'—',producto:d.producto||'(sin producto)',comercial:d.comercial||'',importe:0};
-      map[k].importe+=d.importe;
-    });
-    return Object.values(map).map(v=>({...v,importe:Math.round(v.importe*100)/100}));
-  };
-  const sharedKey=it=>`${normalize(it.anunciante)}|||${normalize(it.marca)}|||${normalize(it.publicacion)}|||${normalize(it.producto)}|||${it.importe}`;
-  const sharedIndex={};
-  buildAllActivations(tabDataAlertas).forEach(it=>{
-    if(it.importe===0||!it.comercial) return; // 0€ no cuenta como "compartido": no aporta valor de alerta
-    const k=sharedKey(it);
-    if(!sharedIndex[k]) sharedIndex[k]=new Set();
-    sharedIndex[k].add(normalize(it.comercial));
+  const fueraCarteraRaw=Object.values(byAnunMarca)
+    .filter(it=>!carteraBlanketAnunciantes.has(it.anunNorm)&&!carteraKeysSet.has(it.anunNorm+'|||'+it.marcaNorm))
+    .map(it=>{
+      const ingreso=showComparable?sumRows(it.rowsArr,lastYear,selectedMonths):sumRows(it.rowsArr,lastYear,null);
+      return {anunciante:it.anunciante,anunNorm:it.anunNorm,marca:it.marca,ingreso};
+    })
+    .filter(it=>it.ingreso!==0);
+  // Aglutinamos por anunciante: una sola fila por anunciante, con sus marcas seguidas.
+  const fueraCarteraPorAnunciante={};
+  fueraCarteraRaw.forEach(it=>{
+    if(!fueraCarteraPorAnunciante[it.anunNorm]) fueraCarteraPorAnunciante[it.anunNorm]={anunciante:it.anunciante,marcas:[],ingreso:0};
+    const g=fueraCarteraPorAnunciante[it.anunNorm];
+    if(it.marca&&it.marca!=='—') g.marcas.push(it.marca);
+    g.ingreso+=it.ingreso;
   });
-  const isSharedAdvertiser=it=>{
-    const set=sharedIndex[sharedKey(it)];
-    return !!set&&set.size>1;
+  const fueraCarteraItems=Object.values(fueraCarteraPorAnunciante).map(g=>({
+    anunciante:g.anunciante,
+    marca:g.marcas.length?g.marcas.slice().sort((a,b)=>a.localeCompare(b,'es')).join(', '):'—',
+    ingreso:g.ingreso
+  })).sort((a,b)=>b.ingreso-a.ingreso);
+  const fueraCarteraTotal=fueraCarteraItems.reduce((s,it)=>s+it.ingreso,0);
+
+  const renderFueraCarteraRows=items=>{
+    if(items.length===0) return `<tr><td colspan="3" class="pm-group-empty">No hay anunciantes con ingreso de este comercial fuera de su cartera</td></tr>`;
+    return items.map(it=>`<tr><td class="pm-prod-name">${it.anunciante}</td><td>${it.marca}</td><td>${formatEUR(it.ingreso)}</td></tr>`).join('');
   };
 
-  const alertsByRange=ALERT_RANGES.map(range=>({range,items:sortAlertItems(alertActivations.filter(it=>range.test(it.importe)))}));
-  const renderAlertRows=({range,items})=>{
-    if(items.length===0) return `<tr class="pm-group-header"><td colspan="6">${range.label} (0)</td></tr><tr><td colspan="6" class="pm-group-empty">Sin activaciones en este rango</td></tr>`;
-    let h=`<tr class="pm-group-header"><td colspan="6">${range.label} (${items.length})</td></tr>`;
-    items.forEach(it=>{
-      const sharedCls=isSharedAdvertiser(it)?' alert-shared':'';
-      const sharedIcon=sharedCls?'<span class="alert-shared-badge" title="Mismo anunciante/marca/publicación/producto/importe también aparece con otro comercial">*</span>':'';
-      h+=`<tr><td class="pm-prod-name${sharedCls}" title="${sharedCls?'Mismo anunciante/marca/publicación/producto/importe también aparece con otro comercial':''}">${sharedIcon}${it.anunciante}</td><td>${it.marca}</td><td>${it.sector}</td><td>${it.publicacion}</td><td>${it.producto}</td><td>${formatEUR(it.importe)}</td></tr>`;
-    });
-    return h;
-  };
-  const alertsHtml=`
-    <table class="mini-canal-table pm-family-table alerts-table">
-      <thead><tr><th>Anunciante</th><th>Marca</th><th>Sector</th><th>Publicación</th><th>Producto</th><th>Ingreso</th></tr></thead>
+  const fueraCarteraHtml=`
+    <div class="stat-row" style="margin:18px 0 12px;">
+      <div class="stat-box highlight">
+        <div class="stat-label">Anunciantes fuera de cartera</div>
+        <div class="stat-value">${fueraCarteraItems.length}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Ingreso total fuera de cartera (${lastYearLabel})</div>
+        <div class="stat-value">${formatEUR(fueraCarteraTotal)}</div>
+      </div>
+    </div>
+    <table class="mini-canal-table pm-family-table cartera-table">
+      <thead><tr><th>Anunciante</th><th>Marcas</th><th>Ingreso (${lastYearLabel})</th></tr></thead>
       <tbody>
-        ${alertsByRange.map(renderAlertRows).join('')}
+        ${renderFueraCarteraRows(fueraCarteraItems)}
       </tbody>
     </table>`;
 
@@ -1297,15 +875,12 @@ function render(){
     <div class="block-card">
       <div class="block-card-title">📋 Cartera de Anunciantes</div>
       ${carteraHtml}
-      <div class="canal-weight-note">Cartera = asignación Anunciante → Comercial cargada desde el Excel de cartera (independiente de la columna "Comercial" de los ficheros de ingresos).</div>
-      <div class="canal-weight-note">El ingreso mostrado es el ingreso TOTAL que cada anunciante ha supuesto para la compañía en ${lastYearLabel} (todas las líneas de ese anunciante, sin filtrar por quién figura como Comercial en el dato), dentro de la zona y sector activos.</div>
-      <div class="canal-weight-note"><span style="color:var(--red);">⚠</span> junto al anunciante = ese anunciante de la cartera no aparece nunca en los datos de ingresos cargados; puede haber una diferencia de nombre entre el Excel de cartera y los ficheros de ingresos.</div>
-    </div>
-    <div class="block-card">
-      <div class="block-card-title">🚨 Alertas: activaciones de bajo importe</div>
-      ${alertsHtml}
-      <div class="canal-weight-note">Cada línea es una activación neta (misma publicación + anunciante + marca + producto + año, tras aplicar reparos). Ordenadas por Producto y, dentro de cada producto, por Anunciante. No se incluyen las familias Display, Programática Display Directo/Indirecto, Video ni Video Programático Directo/Indirecto, ni los productos Costes Curated, Gastos Ejecución (Production Cost) y Article (Production Cost).</div>
-      <div class="canal-weight-note"><span class="alert-shared-badge">*</span> junto al anunciante (en morado) = la misma línea exacta (Anunciante + Marca + Publicación + Producto + Importe) también aparece con otro Comercial dentro de la misma zona y periodo. Puede indicar un anunciante compartido a revisar.</div>
+      <div class="canal-weight-note">Cartera = asignación Anunciante + Marca → Comercial cargada desde el Excel de cartera.</div>
+      <div class="canal-weight-note">El ingreso mostrado es el que ESTE comercial ha generado con cada anunciante/marca de su cartera en ${lastYearLabel} (mismo criterio de zona, sector y comercial que el resto del dashboard).</div>
+      <div class="canal-weight-note"><span style="color:var(--red);">⚠</span> junto al anunciante = ese anunciante/marca de la cartera no aparece nunca en los datos de ingresos cargados; puede haber una diferencia de nombre entre el Excel de cartera y los ficheros de ingresos.</div>
+      <div class="block-card-title" style="font-size:13.5px;margin-top:20px;">🔎 Anunciantes con ingreso fuera de cartera</div>
+      ${fueraCarteraHtml}
+      <div class="canal-weight-note">Anunciantes/marcas con ingreso generado por este comercial (mismo periodo, zona y sector) que NO figuran en su cartera del Excel. Útil para detectar ventas de anunciantes que no tiene formalmente asignados.</div>
     </div>
   `;
 
