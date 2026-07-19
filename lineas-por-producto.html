@@ -40,6 +40,13 @@
   .mf-btn{padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:#fff;font-size:12px;cursor:pointer;color:var(--navy);font-weight:600;white-space:nowrap;}
   .mf-btn:hover{background:#eef2f7;}
   .mf-btn.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+  .pub-filter{display:none;flex-direction:column;gap:4px;margin-bottom:14px;background:#fff;border:1px solid var(--border);border-radius:8px;padding:9px 12px;}
+  .pub-filter-head{display:flex;align-items:center;gap:10px;}
+  .pub-group{display:flex;flex-direction:column;gap:4px;padding-top:14px;}
+  .pub-group:first-child{padding-top:0;}
+  .pub-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .pub-canal-label{font-size:12px;font-weight:700;color:var(--navy);white-space:nowrap;letter-spacing:.3px;text-transform:uppercase;}
+  .pub-row .mf-chip{font-size:9px;padding:3px 8px;}
   .empty-state{background:#fff;border:1px dashed var(--border);border-radius:10px;padding:60px 20px;text-align:center;color:var(--muted);}
   .empty-state b{color:var(--text);}
   .tab-bar{display:none;gap:0;margin-bottom:16px;border-bottom:2px solid var(--border);flex-wrap:wrap;}
@@ -152,6 +159,17 @@
     </div>
   </div>
 
+  <div id="pubFilter" class="pub-filter">
+    <div class="pub-filter-head">
+      <span class="mf-label">Publicaciones:</span>
+      <div class="mf-actions">
+        <button class="mf-btn" onclick="setAllPubs(false)">Ninguno</button>
+        <button class="mf-btn active" onclick="setAllPubs(true)">Todos</button>
+      </div>
+    </div>
+    <div id="pubGroups"></div>
+  </div>
+
   <div class="toolbar" id="toolbar" style="display:none">
     <div class="comercial-filter">
       <span class="mf-label">Comercial:</span>
@@ -201,6 +219,7 @@ let hasMesColumn = false;
 let selectedMonths = new Set();
 let activeTab = 'todos';
 let selectedComercial = '';
+let selectedPubs = {}; // { Digital: Set([...]), Print: Set([...]), Eventos: Set([...]) }
 let ALL_COMERCIALES = [];
 let selectedSector = '';
 let expandedProductos = new Set(); // claves "canal|||producto" con el desglose abierto
@@ -238,6 +257,41 @@ const HEADER_ALIASES = {
 
 function normalize(str){
   return String(str||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+}
+// Elle se reparte en tres publicaciones según la URL de la columna Detalle:
+// contiene "gourmet" -> Elle Gourmet; contiene "viajes"/"travel" -> Elle Travel;
+// cualquier otro caso (o vacío) de la publicación Elle -> Elle (revista general).
+// En Digital, la columna Publicación trae dominios (www.elle.com/es/, cosmopolitan.com...);
+// se limpian prefijos/sufijos de URL para que el filtro sea legible.
+function cleanDigitalPub(raw){
+  let s=String(raw||'').trim();
+  if(!s) return '';
+  s=s.replace(/^https?:\/\//i,'');
+  s=s.replace(/^www\./i,'');
+  s=s.replace(/\/+$/,'');
+  s=s.replace(/\/es$/i,'');
+  s=s.replace(/\.(com|es)$/i,'');
+  s=s.replace(/\/+$/,'');
+  s=s.trim();
+  if(s.toLowerCase()==='womenshealthmag') return 'Womenshealth';
+  return s;
+}
+function titleCase(s){
+  if(!s) return s;
+  const lower=s.toLowerCase();
+  return lower.charAt(0).toUpperCase()+lower.slice(1);
+}
+function getPublicacion(d){
+  // Para Digital-Elle el split viene resuelto en d.pubLabel (asignado en processWorkbook)
+  if(d.pubLabel) return d.pubLabel;
+  if(d.canal==='Digital'){
+    const clean=cleanDigitalPub(d.publicacion);
+    return clean?titleCase(clean):'SIN PUBLICACIÓN';
+  }
+  // Print y Eventos: forzamos "Fotogramas & Video" (o variantes) a mostrarse solo como "Fotogramas"
+  const raw=d.publicacion||'SIN PUBLICACIÓN';
+  if(normalize(raw).includes('fotogramas')) return 'FOTOGRAMAS';
+  return raw;
 }
 function findColIndex(headerRow, aliases){
   const nh=headerRow.map(normalize);
@@ -379,11 +433,25 @@ function processWorkbook(data,canal,filename){
       else team='Madrid';
     }
     if(mes!==null) hasMesColumn=true;
-    DATA.push({sector,team,anio,mes,importe,canal,anunciante,marca,comercial,publicacion,detalle:detalleRaw,producto,familia});
+    // ── Split Elle Digital en Elle / Elle Gourmet / Elle Travel ──
+    // Cada fila del Excel pertenece a UNA sola publicación (Elle general, Gourmet o Travel),
+    // detectada por la columna "Detalle".
+    if(canal==='Digital' && normalize(cleanDigitalPub(publicacion))==='elle'){
+      const det=normalize(detalleRaw);
+      const isGourmet = det.includes('gourmet');
+      const isTravel  = det.includes('viaje') || det.includes('travel');
+      let pubLabel='Elle';
+      if(isGourmet) pubLabel='Elle Gourmet';
+      else if(isTravel) pubLabel='Elle Travel';
+      DATA.push({sector,team,anio,mes,importe,canal,anunciante,marca,comercial,publicacion,detalle:detalleRaw,producto,familia,pubLabel});
+    } else {
+      DATA.push({sector,team,anio,mes,importe,canal,anunciante,marca,comercial,publicacion,detalle:detalleRaw,producto,familia});
+    }
   }
   rebuildYears();
   markCanalLoaded(canal,filename,fecha);
   initMonthFilter();
+  initPubFilter();
   populateComercialList();
   populateSectorButtons();
   showUI();
@@ -415,6 +483,7 @@ function onYearChange(){
 }
 function showUI(){
   document.getElementById('toolbar').style.display='flex';
+  document.getElementById('pubFilter').style.display='flex'; // .pub-filter usa flex-direction:column
   document.getElementById('tabBar').style.display='flex';
   document.getElementById('sectorFilterWrap').style.display='block';
   document.getElementById('franjaFilter').style.display='flex';
@@ -458,6 +527,63 @@ function setMonthMode(mode){
     c.classList.toggle('active', selectedMonths.has(sorted[i]));
   });
   updateMonthBtns(mode);
+  render();
+}
+
+/* ────────────── FILTRO DE PUBLICACIONES (por canal, con Elle repartida en 3) ────────────── */
+function initPubFilter(){
+  const icons={Digital:'💻',Print:'📰',Eventos:'🎤'};
+  const wrap=document.getElementById('pubGroups');
+  wrap.innerHTML='';
+  CANALES.forEach(canal=>{
+    let pubs=Array.from(new Set(DATA.filter(d=>d.canal===canal).map(getPublicacion)));
+    // "BOOK" no debe aparecer como publicación seleccionable en Print
+    if(canal==='Print') pubs=pubs.filter(p=>normalize(p)!=='book');
+    // Elle, Elle Gourmet y Elle Travel se fuerzan siempre en Digital en cuanto haya datos de ese canal
+    if(canal==='Digital'&&DATA.some(d=>d.canal==='Digital')){
+      if(!pubs.includes('Elle')) pubs.push('Elle');
+      if(!pubs.includes('Elle Gourmet')) pubs.push('Elle Gourmet');
+      if(!pubs.includes('Elle Travel')) pubs.push('Elle Travel');
+    }
+    pubs=pubs.sort((a,b)=>a.localeCompare(b,'es'));
+    if(pubs.length===0) return;
+    if(!selectedPubs[canal]) selectedPubs[canal]=new Set(pubs);
+    // publicaciones nuevas entran activas por defecto (no ocultan datos existentes)
+    pubs.forEach(p=>{ if(!selectedPubs[canal].has(p)) selectedPubs[canal].add(p); });
+
+    // Grupo: label en línea propia + chips debajo
+    const group=document.createElement('div');
+    group.className='pub-group';
+    group.dataset.canal=canal;
+    const label=document.createElement('div');
+    label.className='pub-canal-label';
+    label.textContent=icons[canal]+' '+canal;
+    group.appendChild(label);
+    const chipsWrap=document.createElement('div');
+    chipsWrap.className='mf-chips pub-row';
+    chipsWrap.dataset.canal=canal;
+    pubs.forEach(p=>{
+      const chip=document.createElement('div');
+      chip.className='mf-chip'+(selectedPubs[canal].has(p)?' active':'');
+      chip.textContent=p;
+      chip.onclick=()=>{
+        if(selectedPubs[canal].has(p)) selectedPubs[canal].delete(p); else selectedPubs[canal].add(p);
+        chip.classList.toggle('active',selectedPubs[canal].has(p));
+        render();
+      };
+      chipsWrap.appendChild(chip);
+    });
+    group.appendChild(chipsWrap);
+    wrap.appendChild(group);
+  });
+}
+function setAllPubs(all){
+  document.querySelectorAll('#pubGroups .pub-group').forEach(group=>{
+    const canal=group.dataset.canal;
+    const chips=Array.from(group.querySelectorAll('.mf-chip'));
+    selectedPubs[canal]=all?new Set(chips.map(c=>c.textContent)):new Set();
+    chips.forEach(c=>c.classList.toggle('active',all));
+  });
   render();
 }
 
@@ -696,6 +822,8 @@ function getFilteredRowsForCanal(canal){
   if(zonaSectorFilter) rows=rows.filter(d=>zonaSectorFilter.has(normalize(d.sector)));
   if(selectedComercial) rows=rows.filter(d=>normalize(d.comercial)===normalize(selectedComercial));
   if(selectedSector) rows=rows.filter(d=>normalize(d.sector)===normalize(selectedSector));
+  const pubsCanal=selectedPubs[canal];
+  if(pubsCanal) rows=rows.filter(d=>pubsCanal.has(getPublicacion(d)));
   rows=rows.filter(d=>d.anio===selectedYear);
   if(hasMesColumn&&selectedMonths.size>0) rows=rows.filter(d=>d.mes!==null&&selectedMonths.has(d.mes));
   return rows;
