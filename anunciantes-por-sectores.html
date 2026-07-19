@@ -760,7 +760,7 @@ function renderSectorAdvertisers(){
   renderSectorResumen(totalPrev,totalLast,prevLabel,lastLabel);
 
   let html=`<table class="mini-canal-table sector-table">
-    <thead><tr><th>Anunciante</th><th>${prevLabel}</th><th>${lastLabel}</th><th>%</th></tr></thead>
+    <thead><tr><th>Anunciante</th><th>${lastLabel}</th><th>${prevLabel}</th><th>%</th></tr></thead>
     <tbody>`;
 
   items.forEach((it,idx)=>{
@@ -771,8 +771,8 @@ function renderSectorAdvertisers(){
     const anunProgBadge=it.hasProg?' <span class="sector-prog-badge">Con Programática</span>':'';
     html+=`<tr class="sector-anun-row${dimCls}" data-idx="${idx}">
       <td><span class="sector-toggle${isOpen?' open':''}">▶</span>${it.anunciante}${anunProgBadge}</td>
-      <td>${formatEUR(it.prev)}</td>
       <td>${formatEUR(it.last)}</td>
+      <td>${formatEUR(it.prev)}</td>
       <td class="pct ${cls}">${formatPct(pct)} <span class="canal-weight">(${formatDeltaEUR(it.last-it.prev)})</span></td>
     </tr>`;
 
@@ -782,8 +782,8 @@ function renderSectorAdvertisers(){
       const pubProgBadge=p.hasProg?' <span class="sector-prog-badge">Con Programática</span>':'';
       html+=`<tr class="sector-pub-row" data-parent-idx="${idx}" style="display:${isOpen?'table-row':'none'}">
         <td>${p.pub}${pubProgBadge}</td>
-        <td>${formatEUR(p.pPrev)}</td>
         <td>${formatEUR(p.pLast)}</td>
+        <td>${formatEUR(p.pPrev)}</td>
         <td class="pct ${pCls}">${formatPct(pPct)} <span class="canal-weight">(${formatDeltaEUR(p.pLast-p.pPrev)})</span></td>
       </tr>`;
     });
@@ -794,8 +794,8 @@ function renderSectorAdvertisers(){
   html+=`</tbody>
     <tfoot><tr class="sector-total-row">
       <td>Total (visible)</td>
-      <td>${formatEUR(totalPrev)}</td>
       <td>${formatEUR(totalLast)}</td>
+      <td>${formatEUR(totalPrev)}</td>
       <td class="pct ${totalCls}">${formatPct(totalPct)} <span class="canal-weight">(${formatDeltaEUR(totalLast-totalPrev)})</span></td>
     </tr></tfoot>
   </table>`;
