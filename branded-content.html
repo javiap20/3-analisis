@@ -739,7 +739,15 @@ function computeRealPubStats(pubItems,activeProduct,pub){
     const posItems=g.pos.slice();
     g.neg.forEach(nIt=>{
       const target=Math.abs(nIt.importe);
-      const exactIdx=posItems.findIndex(p=>Math.round(p.importe*100)===Math.round(target*100));
+      const negComercial=normalize(nIt.comercial||'');
+      // Prioriza cancelar contra una positiva del MISMO comercial (evita que
+      // el reparo de una persona anule por error la línea de otra cuando
+      // varias positivas comparten el mismo importe). Si no hay ninguna del
+      // mismo comercial, cae al comportamiento anterior (cualquier importe igual).
+      let exactIdx=posItems.findIndex(p=>Math.round(p.importe*100)===Math.round(target*100)&&normalize(p.comercial||'')===negComercial);
+      if(exactIdx<0){
+        exactIdx=posItems.findIndex(p=>Math.round(p.importe*100)===Math.round(target*100));
+      }
       if(exactIdx>=0) posItems.splice(exactIdx,1);
     });
     // Emparejar ventas conjuntas: mismo importe + comerciales diferentes + Madrid y Barcelona
@@ -1088,7 +1096,11 @@ function renderBrandedContent(){
       negLines.forEach(neg=>{
         if(neg._used) return;
         const target=Math.abs(neg.importe);
-        const matchIdx=posLines.findIndex(p=>!p._used&&Math.round(p.importe*100)===Math.round(target*100)&&normalize(p.anunciante)===normalize(neg.anunciante)&&normalize(p.marca)===normalize(neg.marca));
+        const negComercial=normalize(neg.comercial||'');
+        let matchIdx=posLines.findIndex(p=>!p._used&&Math.round(p.importe*100)===Math.round(target*100)&&normalize(p.anunciante)===normalize(neg.anunciante)&&normalize(p.marca)===normalize(neg.marca)&&normalize(p.comercial||'')===negComercial);
+        if(matchIdx<0){
+          matchIdx=posLines.findIndex(p=>!p._used&&Math.round(p.importe*100)===Math.round(target*100)&&normalize(p.anunciante)===normalize(neg.anunciante)&&normalize(p.marca)===normalize(neg.marca));
+        }
         if(matchIdx>=0){posLines[matchIdx]._used=true;neg._used=true;cancelled++;}
       });
       return totalLineas-cancelled*2;

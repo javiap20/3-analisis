@@ -102,8 +102,9 @@
   tr.producto-row.row-dimmed td.franja-col{color:#eccbda!important;}
   tr.desglose-row td{padding:0;border-bottom:1px solid var(--border);background:#f8fafc;}
   .desglose-wrap{padding:10px 16px 14px 38px;}
-  table.desglose-table{width:100%;border-collapse:collapse;font-size:12px;}
-  table.desglose-table thead th{background:#e7edf4;color:var(--navy);text-align:left;padding:6px 10px;font-weight:600;border-bottom:1px solid var(--border);}
+  table.desglose-table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;}
+  table.desglose-table td.truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  table.desglose-table thead th{background:#e7edf4;color:var(--navy);text-align:center;padding:6px 10px;font-weight:600;border-bottom:1px solid var(--border);}
   table.desglose-table tbody td{padding:6px 10px;border-bottom:1px solid #eaeef3;color:var(--text);}
   table.desglose-table tbody tr:last-child td{border-bottom:none;}
   table.desglose-table tbody tr:hover{background:#eef2f7;}
@@ -564,7 +565,15 @@ function computeRealPubItems(pubItems){
     const posItems=g.pos.slice();
     g.neg.forEach(nIt=>{
       const target=Math.abs(nIt.importe);
-      const exactIdx=posItems.findIndex(p=>Math.round(p.importe*100)===Math.round(target*100));
+      const negComercial=normalize(nIt.comercial||'');
+      // Prioriza cancelar contra una positiva del MISMO comercial (evita que
+      // el reparo de una persona anule por error la línea de otra cuando
+      // varias positivas comparten el mismo importe). Si no hay ninguna del
+      // mismo comercial, cae al comportamiento anterior (cualquier importe igual).
+      let exactIdx=posItems.findIndex(p=>Math.round(p.importe*100)===Math.round(target*100)&&normalize(p.comercial||'')===negComercial);
+      if(exactIdx<0){
+        exactIdx=posItems.findIndex(p=>Math.round(p.importe*100)===Math.round(target*100));
+      }
       if(exactIdx>=0) posItems.splice(exactIdx,1);
     });
     const byImporte=new Map();
@@ -581,7 +590,7 @@ function computeRealPubItems(pubItems){
       let pairedM=0,pairedB=0;
       for(let i=0;i<pairs;i++){
         if(normalize(madridItems[i].comercial||'')!==normalize(barcelonaItems[i].comercial||'')){
-          realItems.push({...madridItems[i],importe:madridItems[i].importe+barcelonaItems[i].importe});
+          realItems.push({...madridItems[i],importe:madridItems[i].importe+barcelonaItems[i].importe,comercial:(madridItems[i].comercial||'')+' + '+(barcelonaItems[i].comercial||'')});
           pairedM++;pairedB++;
         } else {
           realItems.push({...madridItems[i]});
@@ -762,10 +771,10 @@ function renderCanalBlock(canal,franja){
       desgloseItems=desgloseItems.slice().sort((a,b)=>b.importe-a.importe);
       const desgloseRows=desgloseItems.map(d=>`
         <tr>
-          <td>${escapeHtml(d.anunciante)||'—'}</td>
-          <td>${escapeHtml(d.marca)||'—'}</td>
-          <td>${escapeHtml(d.publicacion)||'—'}</td>
-          <td>${escapeHtml(d.comercial)||'—'}</td>
+          <td class="truncate" title="${escapeHtml(d.anunciante)}">${escapeHtml(d.anunciante)||'—'}</td>
+          <td class="truncate" title="${escapeHtml(d.marca)}">${escapeHtml(d.marca)||'—'}</td>
+          <td class="truncate" title="${escapeHtml(d.publicacion)}">${escapeHtml(d.publicacion)||'—'}</td>
+          <td class="truncate" title="${escapeHtml(d.comercial)}">${escapeHtml(d.comercial)||'—'}</td>
           <td class="desglose-ingreso">${formatEURExact(d.importe)}</td>
         </tr>`).join('');
       html+=`
@@ -773,6 +782,13 @@ function renderCanalBlock(canal,franja){
       <td colspan="${colspanDesglose}">
         <div class="desglose-wrap">
           <table class="desglose-table">
+            <colgroup>
+              <col style="width:12%">
+              <col style="width:18%">
+              <col style="width:18%">
+              <col style="width:34%">
+              <col style="width:18%">
+            </colgroup>
             <thead>
               <tr>
                 <th>Anunciante</th>
