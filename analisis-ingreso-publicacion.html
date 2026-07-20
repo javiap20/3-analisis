@@ -46,6 +46,20 @@
   .pub-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .pub-canal-label{font-size:12px;font-weight:700;color:var(--navy);white-space:nowrap;letter-spacing:.3px;text-transform:uppercase;}
   .pub-row .mf-chip{font-size:9px;padding:3px 8px;}
+  .pub-canal-row{display:flex;align-items:center;gap:8px;}
+  .prod-canal-filter{position:relative;}
+  .prod-filter-toggle{font-size:10.5px;padding:2px 7px;border-radius:6px;border:1px solid #d9c9f0;background:#f3ebfb;color:#7a4fb5;cursor:pointer;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;font-family:inherit;}
+  .prod-filter-toggle:hover{border-color:#a875d6;color:#5c2e91;}
+  .prod-filter-toggle.filtered{border-color:#a875d6;color:#5c2e91;background:#e9d9f7;font-weight:600;}
+  .prod-filter-count{font-weight:600;}
+  .prod-dropdown{display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:30;background:#faf6fd;border:1px solid #d9c9f0;border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,.14);padding:7px;min-width:180px;max-height:230px;overflow-y:auto;}
+  .prod-dropdown.open{display:block;}
+  .prod-dropdown-actions{display:flex;gap:5px;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid #d9c9f0;}
+  .prod-dropdown-actions button{font-size:9.5px;padding:2px 7px;border-radius:5px;border:1px solid #d9c9f0;background:#f3ebfb;color:#5c2e91;cursor:pointer;font-weight:600;font-family:inherit;}
+  .prod-dropdown-actions button:hover{background:#e9d9f7;}
+  .prod-dropdown-item{display:flex;align-items:center;gap:6px;font-size:10.5px;padding:2.5px 2px;cursor:pointer;color:var(--text);user-select:none;white-space:nowrap;}
+  .prod-dropdown-item:hover{color:#7a4fb5;}
+  .prod-dropdown-item input{margin:0;cursor:pointer;width:12px;height:12px;accent-color:#a875d6;}
   .empty-state{background:#fff;border:1px dashed var(--border);border-radius:10px;padding:60px 20px;text-align:center;color:var(--muted);}
   .empty-state b{color:var(--text);}
   .charts-wrap{display:flex;flex-direction:column;gap:28px;}
@@ -200,7 +214,8 @@ const HEADER_ALIASES = {
   marca:       ['marca'],
   comercial:   ['comercial'],
   detalle:     ['detalle'],
-  publicacion: ['publicación','publicacion']
+  publicacion: ['publicación','publicacion'],
+  producto:    ['producto','productos']
 };
 
 // Elle se reparte en tres publicaciones según la URL de la columna Detalle:
@@ -237,6 +252,10 @@ function getPublicacion(d){
   const raw=d.publicacion||'SIN PUBLICACIÓN';
   if(normalize(raw).includes('fotogramas')) return 'FOTOGRAMAS';
   return raw;
+}
+
+function getProducto(d){
+  return d.producto&&d.producto.trim()?d.producto.trim():'Sin producto';
 }
 
 function normalize(str){
@@ -399,14 +418,18 @@ function initPubFilter(){
     if(!selectedPubs[canal]) selectedPubs[canal]=new Set();
     // publicaciones nuevas NO entran activas por defecto — el usuario las activa manualmente
 
-    // Grupo: label en línea propia + chips debajo
+    // Grupo: label + filtro de Producto en línea propia, chips de publicación debajo
     const group=document.createElement('div');
     group.className='pub-group';
     group.dataset.canal=canal;
+    const headerRow=document.createElement('div');
+    headerRow.className='pub-canal-row';
     const label=document.createElement('div');
     label.className='pub-canal-label';
     label.textContent=icons[canal]+' '+canal;
-    group.appendChild(label);
+    headerRow.appendChild(label);
+    headerRow.appendChild(buildProductoFilter(canal));
+    group.appendChild(headerRow);
     const chipsWrap=document.createElement('div');
     chipsWrap.className='mf-chips pub-row';
     chipsWrap.dataset.canal=canal;
@@ -432,6 +455,108 @@ function setAllPubs(all){
     selectedPubs[canal]=all?new Set(chips.map(c=>c.textContent)):new Set();
     chips.forEach(c=>c.classList.toggle('active',all));
   });
+  render();
+}
+
+// ---- FILTRO DE PRODUCTOS (independiente del de Publicaciones, un desplegable pequeño por canal) ----
+let selectedProductos = {}; // { Digital: Set(['Display','Native',...]), Print: Set(...), Eventos: Set(...) }
+let prodSeen = {};          // productos ya vistos alguna vez por canal, para activarlos por defecto solo la primera vez
+function buildProductoFilter(canal){
+  let productos=Array.from(new Set(DATA.filter(d=>d.canal===canal).map(getProducto))).sort((a,b)=>a.localeCompare(b,'es'));
+  if(!selectedProductos[canal]) selectedProductos[canal]=new Set();
+  if(!prodSeen[canal]) prodSeen[canal]=new Set();
+  productos.forEach(p=>{
+    if(!prodSeen[canal].has(p)){
+      prodSeen[canal].add(p);
+      selectedProductos[canal].add(p); // seleccionado por defecto la primera vez que aparece
+    }
+  });
+
+  const filterWrap=document.createElement('div');
+  filterWrap.className='prod-canal-filter';
+
+  const toggleBtn=document.createElement('button');
+  toggleBtn.type='button';
+  toggleBtn.className='prod-filter-toggle';
+  toggleBtn.id='prodToggle-'+canal;
+  toggleBtn.onclick=(e)=>{ e.stopPropagation(); toggleProdDropdown(canal); };
+  filterWrap.appendChild(toggleBtn);
+
+  const dropdown=document.createElement('div');
+  dropdown.className='prod-dropdown';
+  dropdown.id='prodDropdown-'+canal;
+  dropdown.onclick=(e)=>e.stopPropagation();
+
+  const actions=document.createElement('div');
+  actions.className='prod-dropdown-actions';
+  const btnNone=document.createElement('button');
+  btnNone.type='button'; btnNone.textContent='Ninguno';
+  btnNone.onclick=()=>setCanalProductos(canal,false);
+  const btnAll=document.createElement('button');
+  btnAll.type='button'; btnAll.textContent='Todos';
+  btnAll.onclick=()=>setCanalProductos(canal,true);
+  actions.appendChild(btnNone);
+  actions.appendChild(btnAll);
+  dropdown.appendChild(actions);
+
+  const list=document.createElement('div');
+  list.className='prod-dropdown-list';
+  if(productos.length===0){
+    const empty=document.createElement('div');
+    empty.className='prod-dropdown-item';
+    empty.textContent='Sin datos de producto';
+    list.appendChild(empty);
+  }
+  productos.forEach(p=>{
+    const item=document.createElement('label');
+    item.className='prod-dropdown-item';
+    const cb=document.createElement('input');
+    cb.type='checkbox';
+    cb.checked=selectedProductos[canal].has(p);
+    cb.onchange=()=>{
+      if(cb.checked) selectedProductos[canal].add(p); else selectedProductos[canal].delete(p);
+      updateProdFilterButton(canal,productos.length);
+      render();
+    };
+    const txt=document.createElement('span');
+    txt.textContent=p;
+    item.appendChild(cb);
+    item.appendChild(txt);
+    list.appendChild(item);
+  });
+  dropdown.appendChild(list);
+  filterWrap.appendChild(dropdown);
+
+  const nSel=selectedProductos[canal].size;
+  toggleBtn.innerHTML='Producto &#9662; <span class="prod-filter-count">'+nSel+'/'+productos.length+'</span>';
+  toggleBtn.classList.toggle('filtered',nSel<productos.length);
+  return filterWrap;
+}
+function updateProdFilterButton(canal,total){
+  const btn=document.getElementById('prodToggle-'+canal);
+  if(!btn) return;
+  const n=selectedProductos[canal]?selectedProductos[canal].size:0;
+  btn.innerHTML='Producto &#9662; <span class="prod-filter-count">'+n+'/'+total+'</span>';
+  btn.classList.toggle('filtered',n<total);
+}
+function toggleProdDropdown(canal){
+  const dd=document.getElementById('prodDropdown-'+canal);
+  if(!dd) return;
+  const isOpen=dd.classList.contains('open');
+  document.querySelectorAll('.prod-dropdown.open').forEach(d=>d.classList.remove('open'));
+  if(!isOpen) dd.classList.add('open');
+}
+document.addEventListener('click',()=>{
+  document.querySelectorAll('.prod-dropdown.open').forEach(d=>d.classList.remove('open'));
+});
+function setCanalProductos(canal,all){
+  const dd=document.getElementById('prodDropdown-'+canal);
+  if(!dd) return;
+  const checkboxes=Array.from(dd.querySelectorAll('input[type=checkbox]'));
+  checkboxes.forEach(cb=>{ cb.checked=all; });
+  const names=Array.from(dd.querySelectorAll('.prod-dropdown-item span')).map(s=>s.textContent);
+  selectedProductos[canal]=all?new Set(names):new Set();
+  updateProdFilterButton(canal,names.length);
   render();
 }
 
@@ -504,6 +629,7 @@ function processWorkbook(data,canal,filename){
   const colComercial=findColIndex(hr,HEADER_ALIASES.comercial);
   const colDetalle=findColIndex(hr,HEADER_ALIASES.detalle);
   const colPublicacion=findColIndex(hr,HEADER_ALIASES.publicacion);
+  const colProducto=findColIndex(hr,HEADER_ALIASES.producto);
   if(colAnio===-1||colImporte===-1){markCanalPending(canal);return;}
 
   DATA=DATA.filter(d=>d.canal!==canal);
@@ -521,6 +647,7 @@ function processWorkbook(data,canal,filename){
     const comercial=colComercial!==-1?String(row[colComercial]||'').trim():'';
     const detalle=colDetalle!==-1?String(row[colDetalle]||'').trim():'';
     const publicacion=colPublicacion!==-1?String(row[colPublicacion]||'').trim():'';
+    const producto=colProducto!==-1?String(row[colProducto]||'').trim():'';
     if(isNaN(anio)||anio<2000||anio>2100) continue;
     if(importe===0) continue;
     const claseLetra=normalize(rawClase).charAt(0);
@@ -548,9 +675,9 @@ function processWorkbook(data,canal,filename){
       let pubLabel='Elle';
       if(isGourmet) pubLabel='Elle Gourmet';
       else if(isTravel) pubLabel='Elle Travel';
-      DATA.push({sector,team,anio,mes,importe,canal,anunciante,marca,comercial,detalle,publicacion,pubLabel});
+      DATA.push({sector,team,anio,mes,importe,canal,anunciante,marca,comercial,detalle,publicacion,producto,pubLabel});
     } else {
-      DATA.push({sector,team,anio,mes,importe,canal,anunciante,marca,comercial,detalle,publicacion});
+      DATA.push({sector,team,anio,mes,importe,canal,anunciante,marca,comercial,detalle,publicacion,producto});
     }
   }
   rebuildYears();
@@ -701,6 +828,8 @@ function render(){
   const filtered=DATA.filter(d=>{
     const pubs=selectedPubs[d.canal];
     if(!pubs||!pubs.has(getPublicacion(d))) return false;
+    const prods=selectedProductos[d.canal];
+    if(!prods||!prods.has(getProducto(d))) return false;
     if(selectedYears.size>0&&!selectedYears.has(d.anio)) return false;
     if(hasMesColumn&&selectedMonths.size>0&&!selectedMonths.has(d.mes)) return false;
     return true;
@@ -899,6 +1028,8 @@ function buildAnunciantesBlock(activePubs){
   const rows = DATA.filter(d=>{
     const pubs=selectedPubs[d.canal];
     if(!pubs||!activePubs.has(getPublicacion(d))||!pubs.has(getPublicacion(d))) return false;
+    const prods=selectedProductos[d.canal];
+    if(!prods||!prods.has(getProducto(d))) return false;
     return anuncianteYears.has(d.anio);
   });
 
