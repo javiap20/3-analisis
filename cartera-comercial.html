@@ -91,9 +91,19 @@
   table.pm-family-table tbody td:first-child{color:var(--text);font-weight:400;}
   table.cartera-table{table-layout:fixed;}
   table.cartera-table th:nth-child(1),table.cartera-table td:nth-child(1){width:28%;}
-  table.cartera-table th:nth-child(2),table.cartera-table td:nth-child(2){width:32%;text-align:left;}
+  table.cartera-table th:nth-child(2),table.cartera-table td:nth-child(2){width:32%;text-align:center;}
   table.cartera-table th:nth-child(3),table.cartera-table td:nth-child(3){width:20%;}
   table.cartera-table th:nth-child(4),table.cartera-table td:nth-child(4){width:20%;}
+  .print-btn{display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:6px;border:1px solid var(--border);background:#fff;color:var(--navy);font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;}
+  .print-btn:hover{background:#eef2f7;border-color:var(--accent);}
+  @media print{
+    body{background:#fff;}
+    header,#monthFilter,#toolbar,#tabBar,.no-print{display:none !important;}
+    main{padding:0;max-width:none;margin:0;}
+    .block-card{border:1px solid #ccc;box-shadow:none;page-break-inside:avoid;break-inside:avoid;}
+    #blocksContainer{gap:14px;}
+    .comercial-header{page-break-after:avoid;}
+  }
   table.alerts-table tbody td{font-size:11.5px;}
   table.alerts-table tbody td:first-child{font-size:12.5px;}
   .pm-group-header td{background:#eef2f7;font-weight:700;color:var(--navy);text-align:left !important;font-size:12px;padding:8px 8px !important;}
@@ -232,7 +242,7 @@ const CARTERA_HEADER_ALIASES = {
 };
 
 function normalize(str){
-  return String(str||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+  return String(str||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
 }
 // Algunos comerciales están escritos de forma distinta en el Excel de Cartera
 // respecto a los Excel de Digital/Print/Eventos (nombre incompleto, apellido
@@ -912,10 +922,12 @@ function render(){
       </tbody>
     </table>`;
 
+  document.title=`Cartera - ${selectedComercial}`;
   let html=`
     <div class="comercial-header">
       <h2>👤 ${selectedComercial}</h2>
       <div class="comercial-meta">${zonaLabel}${showComparable?' · '+monthsLabel:''}</div>
+      <button class="print-btn no-print" style="margin-left:auto;" onclick="window.print()">🖨️ Exportar a PDF</button>
     </div>
     <div class="block-card">
       <div class="block-card-title">💰 Ingreso: año seleccionado vs año anterior</div>
