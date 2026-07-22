@@ -263,6 +263,35 @@ function resolveComercialKey(nombre){
   const n=normalize(nombre);
   return COMERCIAL_ALIASES[n]||n;
 }
+// --- Matching flexible de Anunciante (Cartera vs Excel de ingresos) ---
+// Problema 1: variantes de escritura con V en vez de U (nombres "estilizados" tipo
+// ALQVIMIA/ALQUIMIA, SWAROVSKI...): normalizeAnunciante() unifica ambas letras SOLO para
+// comparar (nunca se usa para lo que se muestra en pantalla, que sigue siendo el texto
+// original del Excel). Esto es seguro de aplicar siempre: no genera falsos positivos porque
+// dos anunciantes reales y distintos casi nunca difieren solo en V/U.
+// Problema 2: nombres incompletos que meten las comerciales en el Anunciante del Excel de
+// ingresos (p.ej. "ALQVIMIA" en vez de "TALLER DE ALQVIMIA" que hay en Cartera). Para esto
+// NO usamos un match automático "el nombre corto está contenido en el largo": con anunciantes
+// reales eso da falsos positivos peligrosos (p.ej. "AMAZON" quedaría dentro de "AMAZON PRIME"
+// y se fundirían dos anunciantes distintos). En su lugar, cada caso de nombre incompleto se
+// añade a mano en ANUNCIANTE_ALIASES: clave y valor ya en formato normalizeAnunciante()
+// (minúsculas, sin acentos, V→U), igual que se hace con COMERCIAL_ALIASES. Si detectáis más
+// anunciantes con este problema, añadid aquí una línea: 'nombre corto que mete la comercial':
+// 'nombre completo que hay en Cartera'.
+function normalizeAnunciante(str){
+  return normalize(str).replace(/v/g,'u');
+}
+const ANUNCIANTE_ALIASES={
+  'alquimia':'taller de alquimia'
+};
+function resolveAnuncianteKey(nombre){
+  const n=normalizeAnunciante(nombre);
+  return ANUNCIANTE_ALIASES[n]||n;
+}
+function anunciantesCoinciden(anunA,anunB){
+  const a=resolveAnuncianteKey(anunA), b=resolveAnuncianteKey(anunB);
+  return !!a && !!b && a===b;
+}
 function findColIndex(headerRow, aliases){
   const nh=headerRow.map(normalize);
   for(const a of aliases){ const i=nh.indexOf(normalize(a)); if(i!==-1) return i; }
@@ -787,10 +816,12 @@ function render(){
   // anunciante para toda la compañía.
   const carteraKeyCom=resolveComercialKey(selectedComercial);
   const carteraMap=CARTERA_BY_COMERCIAL[carteraKeyCom]||new Map();
-  const anunciantesConDatosAlgunaVez=new Set(DATA.map(d=>normalize(d.anunciante)));
+  // Lista de anunciantes únicos que sí tienen algún dato de ingreso cargado (en cualquier año/
+  // comercial), para el aviso ⚠ de "cartera sin datos". Se compara con anunciantesCoinciden()
+  // para que no falle por V/U o por nombres parciales.
+  const anunciantesConDatosUnicos=Array.from(new Set(DATA.map(d=>d.anunciante).filter(Boolean)));
   const carteraItems=Array.from(carteraMap.values()).map(({anunciante:anunOriginal,sector:sectorOriginal})=>{
-    const anunNorm=normalize(anunOriginal);
-    const subset=rows.filter(d=>normalize(d.anunciante)===anunNorm);
+    const subset=rows.filter(d=>anunciantesCoinciden(d.anunciante,anunOriginal));
     const ingreso=showComparable?sumRows(subset,lastYear,selectedMonths):sumRows(subset,lastYear,null);
     // Marcas con las que ha entrado ese ingreso: las marcas reales (de los Excel de ingresos)
     // que aparecen en el periodo filtrado para este anunciante y este comercial. El Excel de
@@ -798,13 +829,13 @@ function render(){
     const subsetPeriodo=filterRowsYear(subset,lastYear,showComparable?selectedMonths:null);
     const marcasIngreso=Array.from(new Set(subsetPeriodo.map(d=>(d.marca||'').trim()).filter(Boolean)))
       .sort((a,b)=>a.localeCompare(b,'es'));
-    const sinDatos=!anunciantesConDatosAlgunaVez.has(anunNorm);
+    const sinDatos=!anunciantesConDatosUnicos.some(a=>anunciantesCoinciden(a,anunOriginal));
     // Si este comercial no ha facturado nada a este anunciante en el periodo, miramos si
     // OTRO comercial sí lo ha hecho (mismo anunciante, mismo periodo, en cualquier canal/zona),
     // para poder avisar de quién se está llevando ese ingreso.
     let otrosVendedores=[];
     if(ingreso===0){
-      const otros=DATA.filter(d=>d.canal!=='__antivendors'&&normalize(d.anunciante)===anunNorm&&normalize(d.comercial)!==comNorm);
+      const otros=DATA.filter(d=>d.canal!=='__antivendors'&&anunciantesCoinciden(d.anunciante,anunOriginal)&&normalize(d.comercial)!==comNorm);
       const otrosPeriodo=showComparable?otros.filter(d=>d.anio===lastYear&&d.mes!==null&&selectedMonths.has(d.mes)):otros.filter(d=>d.anio===lastYear);
       const porComercial={};
       otrosPeriodo.forEach(d=>{
@@ -866,16 +897,19 @@ function render(){
   // Agrupamos las líneas de `rows` (ya filtradas por este comercial) por Anunciante+Marca y
   // nos quedamos con los anunciantes que NO están en la cartera de este comercial (la cartera
   // ya no distingue por marca, solo por anunciante).
-  const carteraAnunciantesSet=new Set(Array.from(carteraMap.values()).map(v=>normalize(v.anunciante)));
+  const carteraAnunciantesList=Array.from(carteraMap.values()).map(v=>v.anunciante);
   const byAnunMarca={};
   rows.forEach(d=>{
-    const anunNorm=normalize(d.anunciante), marcaNorm=normalize(d.marca);
+    // Agrupamos por anunciante usando normalizeAnunciante (V/U unificada) para que, si el mismo
+    // anunciante aparece escrito de dos formas distintas en los ficheros de ingresos, no salga
+    // como dos filas separadas.
+    const anunNorm=normalizeAnunciante(d.anunciante), marcaNorm=normalize(d.marca);
     const key=anunNorm+'|||'+marcaNorm;
     if(!byAnunMarca[key]) byAnunMarca[key]={anunciante:d.anunciante||'—',marca:d.marca||'—',anunNorm,marcaNorm,rowsArr:[]};
     byAnunMarca[key].rowsArr.push(d);
   });
   const fueraCarteraRaw=Object.values(byAnunMarca)
-    .filter(it=>!carteraAnunciantesSet.has(it.anunNorm))
+    .filter(it=>!carteraAnunciantesList.some(c=>anunciantesCoinciden(c,it.anunciante)))
     .map(it=>{
       const ingreso=showComparable?sumRows(it.rowsArr,lastYear,selectedMonths):sumRows(it.rowsArr,lastYear,null);
       const sectores=Array.from(new Set(it.rowsArr.map(d=>d.sector).filter(Boolean)));
