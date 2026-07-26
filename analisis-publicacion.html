@@ -2541,7 +2541,11 @@ function parseRowsFromWorkbook(wb,canalFijo){
       _fam:String(r[COL_FAM]||'').trim(),
       _year:String(r[COL_YEAR]||'').trim(),_yearRaw:String(r[COL_YEAR]||'').trim(),
       _mes:String(r[COL_MES]||'').trim(),_mesRaw:String(r[COL_MES]||'').trim(),
+      // Conservamos también la publicación original del Excel. El bloque de
+      // presupuestos medios la usa para netear reparos y detectar ventas conjuntas;
+      // Gourmet/Travel siguen siendo publicaciones visibles, no grupos de neteo.
       _pub:effectivePub,_pubClean:effectiveClean,_pubNorm:effectiveNorm,
+      _pubOriginal:pubRaw,_pubOriginalNorm:normalizePub(pubRaw),
       _anun:String(r[COL_ANUN]||'').trim(),
       _marca:String(r[COL_MARCA]||'').trim(),
       _comercial:String(r[COL_COMERCIAL]||'').trim(),
@@ -10354,12 +10358,34 @@ function renderApAreas(cur, prev, yr) {
 //  PASO 2 — cancelar cada reparo (negativa) contra una positiva superviviente del
 //           mismo importe exacto, priorizando el MISMO comercial; si no hay match
 //           de mismo comercial, se cae al criterio genérico (cualquier positiva de
-//           ese importe). Un reparo sin pareja desaparece del resultado (no resta).
+//           ese importe). Si tampoco hay importe exacto (REPARO PARCIAL), se resta
+//           el importe del reparo de una positiva MAYOR (mismo comercial primero).
+//           Solo si no hay ninguna positiva igual o mayor, el reparo desaparece del
+//           resultado sin restar nada (reparo huérfano).
 //  PASO 3 — sobre las positivas supervivientes, sub-agrupar por importe exacto y
 //           emparejar 1 a 1 Madrid con Barcelona (comerciales distintos = venta
 //           conjunta real, se fusiona sumando importe y concatenando comerciales;
 //           mismo comercial en ambos lados = no es venta conjunta, quedan sueltas).
 //           Internacional/Programática/sin team nunca se fusionan.
+// Equipo/zona exclusivo del calculo de presupuestos medios. Replica la
+// prioridad del HTML de referencia sin modificar mapArea(), que se usa en otros
+// bloques del dashboard:
+// 1) Clase J = Internacional; P/Q = Programatica.
+// 2) Si no, el texto del area decide Programatica/Barcelona/Internacional.
+// 3) Cualquier otro caso = Madrid.
+function getBudgetTeam(area, claseOrden) {
+  const clase = normSectorKey(claseOrden || '').toLowerCase();
+  const first = clase.charAt(0);
+  if (first === 'j') return 'Internacional';
+  if (first === 'p' || first === 'q') return 'Programatica';
+
+  const areaNorm = normSectorKey(area || '').toLowerCase();
+  if (areaNorm.includes('programat')) return 'Programatica';
+  if (areaNorm.includes('barcelona')) return 'Barcelona';
+  if (areaNorm.includes('internacional')) return 'Internacional';
+  return 'Madrid';
+}
+
 function computeRealPubItems(pubItems) {
   const groups = new Map();
   pubItems.forEach(it => {
@@ -10373,11 +10399,15 @@ function computeRealPubItems(pubItems) {
 
   const realItems = [];
   groups.forEach(g => {
-    // PASO 2 — cancelar reparos, priorizando mismo comercial
+    // PASO 2 — cancelar reparos, priorizando mismo comercial, incluyendo
+    // REPAROS PARCIALES: si el reparo no coincide con el importe EXACTO de
+    // ninguna positiva, se resta de una positiva MAYOR que el reparo en vez
+    // de descartarlo sin efecto (antes esto dejaba la positiva intacta).
     const posItems = g.pos.slice();
     g.neg.forEach(nIt => {
       const target = Math.abs(nIt._ingreso);
       const negComercial = normSectorKey(nIt._comercial || '');
+      // (a)+(b) cancelación EXACTA: mismo comercial primero, luego genérico
       let exactIdx = posItems.findIndex(p =>
         Math.round(p._ingreso * 100) === Math.round(target * 100)
         && normSectorKey(p._comercial || '') === negComercial);
@@ -10385,7 +10415,26 @@ function computeRealPubItems(pubItems) {
         exactIdx = posItems.findIndex(p =>
           Math.round(p._ingreso * 100) === Math.round(target * 100));
       }
-      if (exactIdx >= 0) posItems.splice(exactIdx, 1);
+      if (exactIdx >= 0) { posItems.splice(exactIdx, 1); return; }
+
+      // (d) REPARO PARCIAL: no hay importe exacto que cancelar entero ->
+      // buscar una positiva MAYOR que el reparo (mismo comercial primero,
+      // luego cualquiera) y restarle el importe del reparo.
+      let partialIdx = posItems.findIndex(p =>
+        Math.round(p._ingreso * 100) > Math.round(target * 100)
+        && normSectorKey(p._comercial || '') === negComercial);
+      if (partialIdx < 0) {
+        partialIdx = posItems.findIndex(p =>
+          Math.round(p._ingreso * 100) > Math.round(target * 100));
+      }
+      if (partialIdx >= 0) {
+        posItems[partialIdx] = {
+          ...posItems[partialIdx],
+          _ingreso: Math.round((posItems[partialIdx]._ingreso - target) * 100) / 100
+        };
+      }
+      // si tampoco hay ninguna positiva mayor, el reparo se queda huérfano
+      // (no resta nada, no se cuenta), igual que antes.
     });
 
     // PASO 3 — emparejar ventas conjuntas Madrid+Barcelona sobre positivas supervivientes
@@ -10396,10 +10445,10 @@ function computeRealPubItems(pubItems) {
       byImporte.get(ik).push(it);
     });
     byImporte.forEach(subGroup => {
-      const madridItems    = subGroup.filter(it => mapArea(it._area, it._claseOrden) === 'Madrid');
-      const barcelonaItems = subGroup.filter(it => mapArea(it._area, it._claseOrden) === 'Barcelona');
+      const madridItems    = subGroup.filter(it => getBudgetTeam(it._area, it._claseOrden) === 'Madrid');
+      const barcelonaItems = subGroup.filter(it => getBudgetTeam(it._area, it._claseOrden) === 'Barcelona');
       const otherItems     = subGroup.filter(it => {
-        const t = mapArea(it._area, it._claseOrden);
+        const t = getBudgetTeam(it._area, it._claseOrden);
         return t !== 'Madrid' && t !== 'Barcelona';
       });
       const pairs = Math.min(madridItems.length, barcelonaItems.length);
@@ -10407,7 +10456,7 @@ function computeRealPubItems(pubItems) {
         if (normSectorKey(madridItems[i]._comercial || '') !== normSectorKey(barcelonaItems[i]._comercial || '')) {
           realItems.push({
             ...madridItems[i],
-            _ingreso: madridItems[i]._ingreso + barcelonaItems[i]._ingreso,
+            _ingreso: Math.round((madridItems[i]._ingreso + barcelonaItems[i]._ingreso) * 100) / 100,
             _comercial: `${madridItems[i]._comercial || ''} + ${barcelonaItems[i]._comercial || ''}`,
             _ventaConjunta: true
           });
@@ -10426,11 +10475,13 @@ function computeRealPubItems(pubItems) {
   return realItems;
 }
 
-// PASO 0 — agrupar SIEMPRE por Publicación antes de aplicar computeRealPubItems
+// PASO 0 — agrupar SIEMPRE por la Publicacion ORIGINAL antes de aplicar
+// computeRealPubItems. En Elle, Gourmet y Travel pueden mostrarse por separado,
+// pero durante el neteo siguen perteneciendo a www.elle.com/es/.
 function computeGroupRealItems(rows) {
   const byPub = new Map();
   rows.forEach(it => {
-    const key = it._pub || '';
+    const key = it._pubOriginal || it._pub || '';
     if (!byPub.has(key)) byPub.set(key, []);
     byPub.get(key).push(it);
   });
@@ -10439,6 +10490,25 @@ function computeGroupRealItems(rows) {
     items = items.concat(computeRealPubItems(pubItems));
   });
   return items;
+}
+
+// Ejecuta el neteo dentro del ambito visible del producto. Evita que un reparo
+// o una venta compartida de otro producto altere su presupuesto medio.
+function computeScopedRealRows(rows, scopeKeyFn, includeZeroLines = true) {
+  const scopes = new Map();
+  rows.forEach(row => {
+    const key = scopeKeyFn ? scopeKeyFn(row) : '__all__';
+    if (!scopes.has(key)) scopes.set(key, []);
+    scopes.get(key).push(row);
+  });
+
+  let result = [];
+  scopes.forEach(scopeRows => {
+    const zeros = includeZeroLines ? scopeRows.filter(r => r._ingreso === 0) : [];
+    const nonZero = scopeRows.filter(r => r._ingreso !== 0);
+    result = result.concat(computeGroupRealItems(nonZero), zeros);
+  });
+  return result;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -10457,15 +10527,24 @@ function renderApIM(cur, prev, yr) {
     'Gastos Ejecución (Production Cost)'
   ];
 
-  // Líneas reales (reparos cancelados + ventas conjuntas Madrid+Barcelona fusionadas,
-  // ver computeRealPubItems/computeGroupRealItems, mismo patrón que el bloque 08) ANTES
-  // de excluir los productos de coste, porque el neteo de reparos se hace a nivel de
-  // Anunciante+Marca dentro de cada Publicación, no a nivel de producto.
-  const realY1 = computeGroupRealItems(cur);
-  const realY0 = computeGroupRealItems(prev);
-
-  const rowsY1 = realY1.filter(r => !excludedProducts.includes(r._prod));
-  const rowsY0 = realY0.filter(r => !excludedProducts.includes(r._prod));
+  // Misma secuencia que analisis-medios-tendencias-ventas-compartidas:
+  // 1) excluir productos de coste;
+  // 2) separar por anio + familia + producto;
+  // 3) dentro de cada ambito, netear reparos y fusionar ventas compartidas;
+  // 4) conservar los ceros fuera del neteo (aqui no entran en la media porque el
+  //    modo de este bloque es fijo: "sin lineas a 0 EUR").
+  const curSinCostes  = cur.filter(r => !excludedProducts.includes(r._prod));
+  const prevSinCostes = prev.filter(r => !excludedProducts.includes(r._prod));
+  const rowsY1 = computeScopedRealRows(
+    curSinCostes,
+    r => (r._yearRaw || r._year || '') + '|||' + (r._fam || '') + '|||' + (r._prod || ''),
+    true
+  );
+  const rowsY0 = computeScopedRealRows(
+    prevSinCostes,
+    r => (r._yearRaw || r._year || '') + '|||' + (r._fam || '') + '|||' + (r._prod || ''),
+    true
+  );
   const prevYrLabel = prevYr || '';
   // zeroMode fijo a 'sin' (precio medio solo sobre líneas con ingreso positivo)
   const zeroMode = 'sin';
