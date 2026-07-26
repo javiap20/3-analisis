@@ -120,6 +120,8 @@
   .alert-shared-icon{font-size:11px;filter:grayscale(0);}
   .alert-shared-badge{color:#9333ea;font-weight:900;font-size:15px;margin-right:2px;}
   .pm-shared-badge{color:#9333ea;font-weight:700;font-size:10.5px;margin-right:5px;background:#f3e8ff;border-radius:4px;padding:1px 4px;white-space:nowrap;}
+  .cartera-shared{color:#15803d !important;font-weight:400 !important;}
+  .cartera-shared-badge{display:inline-block;margin-left:7px;padding:1px 6px;border-radius:10px;background:#dcfce7;color:#15803d;font-size:10.5px;font-weight:400;white-space:nowrap;vertical-align:1px;}
 </style>
 </head>
 <body>
@@ -808,6 +810,41 @@ function render(){
     </tr>`;
   });
 
+  // ---- Detección visual de ventas compartidas Madrid + Barcelona ----
+  // Solo sirve para señalar la fila: NO modifica ni duplica el ingreso del comercial.
+  // Una línea positiva se considera compartida cuando existe otra línea positiva del
+  // mismo año/periodo, canal, familia, producto, publicación, anunciante, marca e importe
+  // exacto en la zona opuesta (Madrid ↔ Barcelona) y con un comercial distinto.
+  const sharedPeriodRows=DATA.filter(d=>{
+    if(d.canal==='__antivendors'||d.anio!==lastYear||d.importe<=0) return false;
+    if(showComparable&&(d.mes===null||!selectedMonths.has(d.mes))) return false;
+    return d.team==='Madrid'||d.team==='Barcelona';
+  });
+  const sharedLineKey=d=>[
+    d.anio, normalize(d.canal), normalize(d.familia), normalize(d.producto),
+    normalize(d.publicacion), resolveAnuncianteKey(d.anunciante), normalize(d.marca),
+    Math.round(d.importe*100)
+  ].join('|||');
+  const sharedLineIndex={};
+  sharedPeriodRows.forEach(d=>{
+    const k=sharedLineKey(d);
+    if(!sharedLineIndex[k]) sharedLineIndex[k]=[];
+    sharedLineIndex[k].push(d);
+  });
+  const getSharedPartners=subsetRows=>{
+    const partners=new Set();
+    subsetRows.filter(d=>d.importe>0&&(d.team==='Madrid'||d.team==='Barcelona')).forEach(d=>{
+      const opposite=d.team==='Madrid'?'Barcelona':'Madrid';
+      const matches=sharedLineIndex[sharedLineKey(d)]||[];
+      matches.forEach(other=>{
+        if(other.team===opposite&&normalize(other.comercial)!==normalize(d.comercial)&&other.comercial){
+          partners.add(other.comercial);
+        }
+      });
+    });
+    return Array.from(partners).sort((a,b)=>a.localeCompare(b,'es'));
+  };
+
   // ---- Cartera real de anunciantes ----
   // La cartera (Excel Anunciante+Marca→Comercial) es una asignación "de propiedad". Para cada
   // anunciante(+marca) de la cartera del comercial seleccionado, sumamos el ingreso que ESE
@@ -827,6 +864,7 @@ function render(){
     // que aparecen en el periodo filtrado para este anunciante y este comercial. El Excel de
     // cartera ya no trae Marca, así que la sacamos siempre del dato real.
     const subsetPeriodo=filterRowsYear(subset,lastYear,showComparable?selectedMonths:null);
+    const sharedPartners=getSharedPartners(subsetPeriodo);
     const marcasIngreso=Array.from(new Set(subsetPeriodo.map(d=>(d.marca||'').trim()).filter(Boolean)))
       .sort((a,b)=>a.localeCompare(b,'es'));
     const sinDatos=!anunciantesConDatosUnicos.some(a=>anunciantesCoinciden(a,anunOriginal));
@@ -853,6 +891,7 @@ function render(){
       sector:sectorOriginal||'—',
       ingreso,
       sinDatos,
+      sharedPartners,
       otrosVendedores
     };
   }).sort((a,b)=>b.ingreso-a.ingreso);
@@ -863,7 +902,10 @@ function render(){
     if(items.length===0) return `<tr><td colspan="4" class="pm-group-empty">Este comercial no tiene anunciantes asignados en la cartera</td></tr>`;
     return items.map(it=>{
       const warn=it.sinDatos?'<span title="Este anunciante de la cartera no aparece nunca en los datos de ingresos cargados (revisa posibles diferencias de nombre)" style="color:var(--red);margin-right:5px;">⚠</span>':'';
-      const filaPrincipal=`<tr><td class="pm-prod-name">${warn}${it.anunciante}</td><td>${it.marca}</td><td>${it.sector}</td><td>${formatEUR(it.ingreso)}</td></tr>`;
+      const shared=it.sharedPartners&&it.sharedPartners.length>0;
+      const sharedTitle=shared?`Venta compartida Madrid + Barcelona con: ${it.sharedPartners.join(', ')}. El ingreso mostrado no se modifica.`:'';
+      const sharedBadge=shared?`<span class="cartera-shared-badge" title="${sharedTitle}">🤝 Compartida</span>`:'';
+      const filaPrincipal=`<tr><td class="pm-prod-name${shared?' cartera-shared':''}" title="${sharedTitle}">${warn}${it.anunciante}${sharedBadge}</td><td>${it.marca}</td><td>${it.sector}</td><td>${formatEUR(it.ingreso)}</td></tr>`;
       const filasOtros=it.otrosVendedores.map(ov=>
         `<tr><td class="pm-prod-name" style="padding-left:40px !important;font-weight:600;color:#9333ea;font-style:italic;">↳ Vendido por ${ov.comercial}</td><td></td><td></td><td style="color:#9333ea;font-weight:600;font-style:italic;">${formatEUR(ov.importe)}</td></tr>`
       ).join('');
@@ -911,31 +953,40 @@ function render(){
   const fueraCarteraRaw=Object.values(byAnunMarca)
     .filter(it=>!carteraAnunciantesList.some(c=>anunciantesCoinciden(c,it.anunciante)))
     .map(it=>{
-      const ingreso=showComparable?sumRows(it.rowsArr,lastYear,selectedMonths):sumRows(it.rowsArr,lastYear,null);
+      const periodoRows=filterRowsYear(it.rowsArr,lastYear,showComparable?selectedMonths:null);
+      const ingreso=periodoRows.reduce((s,d)=>s+d.importe,0);
       const sectores=Array.from(new Set(it.rowsArr.map(d=>d.sector).filter(Boolean)));
-      return {anunciante:it.anunciante,anunNorm:it.anunNorm,marca:it.marca,sectores,ingreso};
+      const sharedPartners=getSharedPartners(periodoRows);
+      return {anunciante:it.anunciante,anunNorm:it.anunNorm,marca:it.marca,sectores,ingreso,sharedPartners};
     })
     .filter(it=>it.ingreso!==0);
   // Aglutinamos por anunciante: una sola fila por anunciante, con sus marcas seguidas y sus sectores reales.
   const fueraCarteraPorAnunciante={};
   fueraCarteraRaw.forEach(it=>{
-    if(!fueraCarteraPorAnunciante[it.anunNorm]) fueraCarteraPorAnunciante[it.anunNorm]={anunciante:it.anunciante,marcas:[],sectores:[],ingreso:0};
+    if(!fueraCarteraPorAnunciante[it.anunNorm]) fueraCarteraPorAnunciante[it.anunNorm]={anunciante:it.anunciante,marcas:[],sectores:[],ingreso:0,sharedPartners:new Set()};
     const g=fueraCarteraPorAnunciante[it.anunNorm];
     if(it.marca&&it.marca!=='—') g.marcas.push(it.marca);
     it.sectores.forEach(s=>{ if(!g.sectores.includes(s)) g.sectores.push(s); });
+    it.sharedPartners.forEach(c=>g.sharedPartners.add(c));
     g.ingreso+=it.ingreso;
   });
   const fueraCarteraItems=Object.values(fueraCarteraPorAnunciante).map(g=>({
     anunciante:g.anunciante,
     marca:g.marcas.length?g.marcas.slice().sort((a,b)=>a.localeCompare(b,'es')).join(', '):'—',
     sector:g.sectores.length?g.sectores.join(', '):'—',
-    ingreso:g.ingreso
+    ingreso:g.ingreso,
+    sharedPartners:Array.from(g.sharedPartners).sort((a,b)=>a.localeCompare(b,'es'))
   })).sort((a,b)=>b.ingreso-a.ingreso);
   const fueraCarteraTotal=fueraCarteraItems.reduce((s,it)=>s+it.ingreso,0);
 
   const renderFueraCarteraRows=items=>{
     if(items.length===0) return `<tr><td colspan="4" class="pm-group-empty">No hay anunciantes con ingreso de este comercial fuera de su cartera</td></tr>`;
-    return items.map(it=>`<tr><td class="pm-prod-name">${it.anunciante}</td><td>${it.marca}</td><td>${it.sector}</td><td>${formatEUR(it.ingreso)}</td></tr>`).join('');
+    return items.map(it=>{
+      const shared=it.sharedPartners&&it.sharedPartners.length>0;
+      const sharedTitle=shared?`Venta compartida Madrid + Barcelona con: ${it.sharedPartners.join(', ')}. El ingreso mostrado no se modifica.`:'';
+      const sharedBadge=shared?`<span class="cartera-shared-badge" title="${sharedTitle}">🤝 Compartida</span>`:'';
+      return `<tr><td class="pm-prod-name${shared?' cartera-shared':''}" title="${sharedTitle}">${it.anunciante}${sharedBadge}</td><td>${it.marca}</td><td>${it.sector}</td><td>${formatEUR(it.ingreso)}</td></tr>`;
+    }).join('');
   };
 
   const fueraCarteraHtml=`
@@ -985,6 +1036,7 @@ function render(){
       <div class="canal-weight-note">Cartera = asignación Anunciante → Comercial cargada desde el Excel de cartera. Las "Marcas con las que ha entrado" no vienen del Excel de cartera (ya no las trae): se calculan a partir de las marcas reales de los ficheros de ingresos con las que este comercial ha facturado a ese anunciante en el periodo seleccionado.</div>
       <div class="canal-weight-note">El ingreso mostrado es el que ESTE comercial ha generado con cada anunciante de su cartera en ${lastYearLabel} (mismo criterio de zona, sector y comercial que el resto del dashboard).</div>
       <div class="canal-weight-note"><span style="color:var(--red);">⚠</span> junto al anunciante = ese anunciante de la cartera no aparece nunca en los datos de ingresos cargados; puede haber una diferencia de nombre entre el Excel de cartera y los ficheros de ingresos.</div>
+      <div class="canal-weight-note"><span class="cartera-shared-badge">🤝 Compartida</span> y anunciante en verde = existe al menos una activación positiva compartida Madrid + Barcelona con otro comercial en el periodo. El ingreso mostrado sigue siendo únicamente la parte asignada al comercial seleccionado.</div>
       <div class="block-card-title" style="font-size:13.5px;margin-top:20px;">🔎 Anunciantes con ingreso fuera de cartera</div>
       ${fueraCarteraHtml}
       <div class="canal-weight-note">Anunciantes con ingreso generado por este comercial (mismo periodo, zona y sector) que NO figuran en su cartera del Excel. Útil para detectar ventas de anunciantes que no tiene formalmente asignados.</div>
