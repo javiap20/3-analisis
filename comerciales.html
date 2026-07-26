@@ -947,32 +947,151 @@ function clearComercial(){
 }
 
 // ---- RENDER ----
-// ---- REPAROS Y PRESUPUESTO MEDIO ----
-// Reparo: líneas con misma publicación+anunciante+marca+año. Se netean (se suman).
-// Si el neto del grupo es 0 -> se colapsa a 1 línea de 0€ (cuenta en "con 0€", se excluye de "sin 0€").
-// Si el neto es distinto de 0 -> se colapsa a 1 línea con el importe neto.
-function reparoKey(d){
-  return normalize(d.publicacion)+'|||'+normalize(d.anunciante)+'|||'+normalize(d.marca)+'|||'+d.anio;
+// ---- REPAROS, VENTAS COMPARTIDAS Y PRESUPUESTO MEDIO ----
+// Lógica unificada con el dashboard de Presupuestos:
+// 1) se trabaja dentro de año + familia + producto;
+// 2) nunca se mezclan publicaciones;
+// 3) dentro de cada publicación se agrupa por anunciante + marca;
+// 4) reparo exacto: cancela una positiva del mismo importe, priorizando el mismo comercial;
+// 5) reparo parcial: resta de una positiva mayor, priorizando el mismo comercial;
+// 6) reparos huérfanos desaparecen;
+// 7) positivas supervivientes del mismo importe se emparejan 1 a 1 Madrid + Barcelona;
+//    comerciales distintos = una venta compartida con el importe completo;
+//    mismo comercial = siguen siendo dos activaciones independientes;
+// 8) las líneas originales a 0 € se conservan solo para la media "con 0 €".
+function pmCents(value){
+  return Math.round((Number(value)||0)*100);
 }
-function buildReparoNets(rs,isSharedFn){
-  const map={};
-  rs.forEach(d=>{
-    const k=reparoKey(d);
-    const mult=(isSharedFn&&isSharedFn(d))?2:1; // venta conjunta: cuenta el importe total de la campaña (x2), no solo la mitad de este comercial
-    map[k]=(map[k]||0)+d.importe*mult;
-  });
-  return Object.values(map).map(v=>Math.round(v*100)/100);
+function pmMemberFromRow(d){
+  return {comercial:d.comercial||'', team:d.team||'Madrid'};
 }
-function computePresupuestoMedio(rs,isSharedFn){
-  const nets=buildReparoNets(rs,isSharedFn);
-  const conCount=nets.length;
-  const conSum=nets.reduce((s,v)=>s+v,0);
-  const sinNets=nets.filter(v=>v!==0);
-  const sinCount=sinNets.length;
-  const sinSum=sinNets.reduce((s,v)=>s+v,0);
+function pmEnsureMeta(d){
   return {
-    conAvg: conCount>0?conSum/conCount:null, conCount, conSum,
-    sinAvg: sinCount>0?sinSum/sinCount:null, sinCount, sinSum
+    ...d,
+    _pmShared:false,
+    _pmMembers:[pmMemberFromRow(d)]
+  };
+}
+function pmComputeRealPubItems(pubItems){
+  const groups=new Map();
+  pubItems.forEach(d=>{
+    if(d.importe===0) return;
+    const key=normalize(d.anunciante)+'|||'+normalize(d.marca);
+    if(!groups.has(key)) groups.set(key,{pos:[],neg:[]});
+    if(d.importe>0) groups.get(key).pos.push(pmEnsureMeta(d));
+    else groups.get(key).neg.push(d);
+  });
+
+  const real=[];
+  groups.forEach(g=>{
+    const pos=g.pos.map(d=>({...d,_pmMembers:d._pmMembers.map(m=>({...m}))}));
+
+    g.neg.forEach(neg=>{
+      const target=Math.abs(neg.importe);
+      const targetCents=pmCents(target);
+      const negCom=normalize(neg.comercial);
+
+      let idx=pos.findIndex(p=>pmCents(p.importe)===targetCents&&normalize(p.comercial)===negCom);
+      if(idx<0) idx=pos.findIndex(p=>pmCents(p.importe)===targetCents);
+      if(idx>=0){
+        pos.splice(idx,1);
+        return;
+      }
+
+      idx=pos.findIndex(p=>pmCents(p.importe)>targetCents&&normalize(p.comercial)===negCom);
+      if(idx<0) idx=pos.findIndex(p=>pmCents(p.importe)>targetCents);
+      if(idx>=0){
+        pos[idx]={...pos[idx],importe:Math.round((pos[idx].importe-target)*100)/100};
+      }
+      // Si no existe positiva compatible, el reparo huérfano no genera activación.
+    });
+
+    const byAmount=new Map();
+    pos.forEach(d=>{
+      const key=pmCents(d.importe);
+      if(!byAmount.has(key)) byAmount.set(key,[]);
+      byAmount.get(key).push(d);
+    });
+
+    byAmount.forEach(list=>{
+      const madrid=list.filter(d=>normalize(d.team)==='madrid');
+      const barcelona=list.filter(d=>normalize(d.team)==='barcelona');
+      const others=list.filter(d=>{
+        const t=normalize(d.team);
+        return t!=='madrid'&&t!=='barcelona';
+      });
+      const pairs=Math.min(madrid.length,barcelona.length);
+
+      for(let i=0;i<pairs;i++){
+        const m=madrid[i], b=barcelona[i];
+        if(normalize(m.comercial)!==normalize(b.comercial)){
+          real.push({
+            ...m,
+            importe:Math.round((m.importe+b.importe)*100)/100,
+            comercial:(m.comercial||'—')+' + '+(b.comercial||'—'),
+            _pmShared:true,
+            _pmMembers:[pmMemberFromRow(m),pmMemberFromRow(b)]
+          });
+        }else{
+          real.push(m,b);
+        }
+      }
+      for(let i=pairs;i<madrid.length;i++) real.push(madrid[i]);
+      for(let i=pairs;i<barcelona.length;i++) real.push(barcelona[i]);
+      others.forEach(d=>real.push(d));
+    });
+  });
+  return real;
+}
+function pmComputeScopedRealRows(rows){
+  const scopes=new Map();
+  rows.forEach(d=>{
+    const key=d.anio+'|||'+normalize(d.familia)+'|||'+normalize(d.producto);
+    if(!scopes.has(key)) scopes.set(key,[]);
+    scopes.get(key).push(d);
+  });
+
+  let result=[];
+  scopes.forEach(scopeRows=>{
+    const zeros=scopeRows.filter(d=>d.importe===0).map(pmEnsureMeta);
+    const byPub=new Map();
+    scopeRows.filter(d=>d.importe!==0).forEach(d=>{
+      const key=normalize(d.publicacion);
+      if(!byPub.has(key)) byPub.set(key,[]);
+      byPub.get(key).push(d);
+    });
+    byPub.forEach(pubRows=>{ result=result.concat(pmComputeRealPubItems(pubRows)); });
+    result=result.concat(zeros);
+  });
+  return result;
+}
+function pmItemBelongsToCommercialTab(item,comercial,tab){
+  const comNorm=normalize(comercial);
+  const members=(item._pmMembers&&item._pmMembers.length)?item._pmMembers:[pmMemberFromRow(item)];
+  return members.some(member=>{
+    if(normalize(member.comercial)!==comNorm) return false;
+    const team=normalize(member.team);
+    if(tab==='todos') return true;
+    if(tab==='madrid-lujo'||tab==='madrid-lifestyle') return team==='madrid';
+    if(tab==='barcelona') return team==='barcelona';
+    if(tab==='internacional') return team==='internacional';
+    if(tab==='programatica') return team==='programatica';
+    return true;
+  });
+}
+function computePresupuestoMedio(rs){
+  const positivas=rs.filter(d=>d.importe>0);
+  const ceros=rs.filter(d=>d.importe===0);
+  const sinSum=positivas.reduce((s,d)=>s+d.importe,0);
+  const sinCount=positivas.length;
+  const conCount=positivas.length+ceros.length;
+  return {
+    conAvg:conCount>0?sinSum/conCount:null,
+    conCount,
+    conSum:sinSum,
+    sinAvg:sinCount>0?sinSum/sinCount:null,
+    sinCount,
+    sinSum
   };
 }
 function filterRowsYear(rs,anio,monthsFilter){
@@ -991,7 +1110,7 @@ function formatPM(avg,count){
 // Solo nos interesan Sponsorship y Curated; ignoramos el resto (incl. "Social Networks").
 const FAMILIAS_DESGLOSE=['Sponsorship','Curated'];
 // Productos que no queremos ver en el bloque de Presupuesto Medio (costes/gastos internos, no son activaciones reales).
-const PM_PRODUCTOS_EXCLUIDOS=['COSTES CURATED','Gastos Ejecución (Production Cost)','Article (Production Cost)'].map(normalize);
+const PM_PRODUCTOS_EXCLUIDOS=['COSTES CURATED','Article (Production Cost)','Content Ignition','COSTES FABRICACION PRODUCCION','COSTES REALIZACION','Gastos Ejecución (Production Cost)'].map(normalize);
 
 // Grupos "manuales" de producto (no son una familia del Excel, son una suma de productos concretos).
 function normProd(p){ return normalize(p); }
@@ -1075,33 +1194,23 @@ function render(){
     </tr>`;
   });
 
-  // Presupuesto medio (con reparos aplicados)
+  // Presupuesto medio: se calcula de forma independiente con la lógica unificada.
+  // "rowsLastYear" se mantiene sin cambios porque alimenta únicamente el bloque de Alertas.
   const rowsLastYear=filterRowsYear(rows,lastYear,showComparable?selectedMonths:null);
   const rowsPrevYear=filterRowsYear(rows,prevYear,showComparable?selectedMonths:null);
 
-  // ---- Detección de venta conjunta (Madrid+Barcelona u otro comercial) para el bloque de Presupuesto medio ----
-  // Igual que la detección de "anunciante compartido" del bloque de Alertas (más abajo), pero aplicada aquí:
-  // buscamos, dentro del mismo tab/sector/año/meses (sin filtrar por comercial), si la MISMA línea exacta
-  // (Anunciante+Marca+Publicación+Producto+Importe) aparece también con otro Comercial. Si es así, esa línea
-  // es una venta conjunta: la calculadora de Presupuesto medio contará el importe DOBLADO (el total real de la
-  // campaña conjunta, no solo la mitad de este comercial) y el desglose la marcará con 🤝×2.
-  const pmScopeRows=filterRowsYear(tabData,lastYear,showComparable?selectedMonths:null)
-    .filter(d=>d.canal!=='__antivendors'&&(!sectorFilter||sectorFilter.has(normalize(d.sector))));
-  const pmSharedKey=d=>normalize(d.anunciante)+'|||'+normalize(d.marca)+'|||'+normalize(d.publicacion)+'|||'+normalize(d.producto)+'|||'+d.anio+'|||'+Math.round(Math.abs(d.importe)*100);
-  const pmSharedIndex={};
-  pmScopeRows.forEach(d=>{
-    if(d.importe===0||!d.comercial) return;
-    const k=pmSharedKey(d);
-    if(!pmSharedIndex[k]) pmSharedIndex[k]=new Set();
-    pmSharedIndex[k].add(normalize(d.comercial));
-  });
-  const isPMShared=d=>{
-    const set=pmSharedIndex[pmSharedKey(d)];
-    return !!set&&set.size>1;
-  };
+  // Para detectar correctamente una venta compartida necesitamos ver simultáneamente
+  // las líneas de Madrid y Barcelona. Por eso el ámbito del presupuesto medio parte de
+  // DATA completa y aplica después el comercial/pestaña seleccionados.
+  const pmScopeRaw=filterRowsYear(DATA,lastYear,showComparable?selectedMonths:null)
+    .filter(d=>d.canal!=='__antivendors'
+      &&(!sectorFilter||sectorFilter.has(normalize(d.sector)))
+      &&!PM_PRODUCTOS_EXCLUIDOS.includes(normalize(d.producto)));
+  const pmAllRealRows=pmComputeScopedRealRows(pmScopeRaw);
+  const pmRowsLastYear=pmAllRealRows.filter(d=>pmItemBelongsToCommercialTab(d,selectedComercial,activeTab));
 
-  // Evolución mensual del presupuesto medio "sin 0€" dentro del periodo filtrado (rowsLastYear),
-  // agrupando por mes y aplicando la misma lógica de reparos (computePresupuestoMedio).
+  // La evolución mensual se obtiene de las activaciones ya neteadas. Así un reparo
+  // no vuelve a procesarse de forma distinta al cambiar de la media acumulada al gráfico.
   const monthlyPMSeries=subsetRows=>{
     const byMonth={};
     subsetRows.forEach(d=>{
@@ -1110,8 +1219,8 @@ function render(){
       byMonth[d.mes].push(d);
     });
     return Object.keys(byMonth).map(Number).sort((a,b)=>a-b).map(mes=>{
-      const pm=computePresupuestoMedio(byMonth[mes],isPMShared);
-      return {mes, avg:pm.sinAvg, count:pm.sinCount};
+      const pm=computePresupuestoMedio(byMonth[mes]);
+      return {mes,avg:pm.sinAvg,count:pm.sinCount};
     }).filter(p=>p.avg!==null);
   };
   const renderTrendArrow=series=>{
@@ -1141,7 +1250,7 @@ function render(){
 
   // Desglose por familia (Sponsorship, Curated: producto a producto) + grupos manuales (Social Paid, Social Organic)
   const familyProductBreakdown=familia=>{
-    const subset=rowsLastYear.filter(d=>normalize(d.familia)===normalize(familia)&&!PM_PRODUCTOS_EXCLUIDOS.includes(normalize(d.producto)));
+    const subset=pmRowsLastYear.filter(d=>normalize(d.familia)===normalize(familia));
     const byProd={};
     subset.forEach(d=>{
       const key=d.producto||'(sin producto)';
@@ -1149,12 +1258,12 @@ function render(){
       byProd[key].push(d);
     });
     return Object.keys(byProd).sort((a,b)=>a.localeCompare(b,'es')).map(prod=>({
-      label:prod, pm:computePresupuestoMedio(byProd[prod],isPMShared), series:monthlyPMSeries(byProd[prod]), hasShared:byProd[prod].some(isPMShared)
+      label:prod,pm:computePresupuestoMedio(byProd[prod]),series:monthlyPMSeries(byProd[prod]),hasShared:byProd[prod].some(d=>d._pmShared)
     }));
   };
   const customGroup=(label,matchFn)=>{
-    const subset=rowsLastYear.filter(d=>matchFn(d.producto));
-    return {label, pm:computePresupuestoMedio(subset,isPMShared), series:monthlyPMSeries(subset), hasShared:subset.some(isPMShared)};
+    const subset=pmRowsLastYear.filter(d=>matchFn(d.producto));
+    return {label,pm:computePresupuestoMedio(subset),series:monthlyPMSeries(subset),hasShared:subset.some(d=>d._pmShared)};
   };
 
   const sponsorshipItems=familyProductBreakdown('Sponsorship');
@@ -1166,7 +1275,7 @@ function render(){
     if(items.length===0) return `<tr class="pm-group-header"><td colspan="5">${title}</td></tr><tr><td colspan="5" class="pm-group-empty">Sin datos para los filtros seleccionados</td></tr>`;
     let h=`<tr class="pm-group-header"><td colspan="5">${title}</td></tr>`;
     items.forEach(it=>{
-      const sharedBadge=it.hasShared?'<span class="pm-shared-badge" title="Incluye al menos una venta conjunta con otro comercial (misma línea exacta también aparece con otro Comercial). El importe se cuenta x2 (total de la campaña conjunta) en esta media.">🤝×2</span>':'';
+      const sharedBadge=it.hasShared?'<span class="pm-shared-badge" title="Incluye al menos una venta compartida real Madrid + Barcelona. Las dos medias líneas se fusionan en una activación con el importe completo de la campaña.">🤝×2</span>':'';
       h+=`<tr><td class="pm-prod-name">${sharedBadge}${it.label}</td><td>${formatPM(it.pm.conAvg,it.pm.conCount)}</td><td>${formatPM(it.pm.sinAvg,it.pm.sinCount)}</td><td class="pm-trend-cell">${renderTrendArrow(it.series)}</td><td class="pm-spark-cell">${renderSparkline(it.series)}</td></tr>`;
     });
     return h;
@@ -1295,8 +1404,8 @@ function render(){
       <div class="block-card-title">🎯 Presupuesto medio por activación</div>
       ${pmProductoHtml}
       <div class="canal-weight-note">Desglose de ${lastYearLabel}: Sponsorship y Curated muestran cada producto tal como viene en la columna "Familia" (Digital + Print). Social Paid = Instagram + Tik Tok + Facebook (Sponsored Post). Social Organic = Insider + Instagram (Orgánico) + Redes sociales orgánicas + Tik Tok (Orgánico).</div>
-      <div class="canal-weight-note">Ingreso total (tras aplicar reparos) ÷ nº de líneas. Reparo = misma publicación + anunciante + marca + año: si se cancela del todo cuenta como 1 línea a 0€ en "con 0€" y se excluye de "sin 0€"; si se compensa parcialmente, se colapsa en 1 línea con el importe neto.</div>
-      <div class="canal-weight-note"><span class="pm-shared-badge">🤝×2</span> junto al Producto = incluye al menos una venta conjunta con otro comercial dentro de la misma zona y periodo (misma línea exacta: Anunciante+Marca+Publicación+Producto+Importe, con otro Comercial). Para esa línea se cuenta el importe DOBLADO (el total real de la campaña conjunta) tanto en la media como en la tendencia/evolución mensual.</div>
+      <div class="canal-weight-note">Lógica unificada: dentro de cada año + familia + producto y publicación, los reparos exactos cancelan la activación; los parciales dejan una sola línea con el importe neto; los reparos sin positiva compatible desaparecen. "Sin 0€" utiliza exclusivamente activaciones positivas reales.</div>
+      <div class="canal-weight-note"><span class="pm-shared-badge">🤝×2</span> junto al Producto = incluye al menos una venta compartida real Madrid + Barcelona, con comerciales distintos y el mismo importe. Las dos medias líneas se fusionan en una sola activación con el importe completo de la campaña.</div>
       <div class="canal-weight-note">Tendencia y evolución mensual: media "sin 0€" por mes dentro del periodo filtrado, comparando el primer mes con datos vs el último (▲ sube más de 0.5%, ▼ baja más de 0.5%, — estable). Pasa el cursor sobre la tendencia o el gráfico para ver el detalle mes a mes.</div>
     </div>
     <div class="block-card">
