@@ -117,6 +117,74 @@
   table.desglose-table tbody tr:hover{background:#eef2f7;}
   table.desglose-table td.desglose-ingreso,table.desglose-table th.desglose-ingreso-th{text-align:right;}
   table.desglose-table td.desglose-ingreso{font-weight:700;color:var(--navy);}
+
+
+  /* ── Selector de vista por canal: Anunciantes / Franja presupuestaria ── */
+  .channel-title-row{justify-content:space-between;gap:14px;flex-wrap:wrap;}
+  .channel-title-label{display:flex;align-items:center;gap:8px;}
+  .channel-view-toggle{display:inline-flex;align-items:center;gap:3px;padding:3px;background:#eef2f7;border:1px solid var(--border);border-radius:9px;}
+  .channel-view-btn{border:none;background:transparent;color:var(--muted);font-size:11.5px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;white-space:nowrap;transition:.15s;}
+  .channel-view-btn:hover{color:var(--navy);background:#fff;}
+  .channel-view-btn.active{background:var(--navy);color:#fff;box-shadow:0 1px 2px rgba(13,35,64,.12);}
+
+  /* ── Vista Franja presupuestaria, separada producto por producto ── */
+  table.budget-range-table th:nth-child(1),table.budget-range-table td:nth-child(1){width:52%;}
+  table.budget-range-table th:nth-child(2),table.budget-range-table td:nth-child(2),
+  table.budget-range-table th:nth-child(3),table.budget-range-table td:nth-child(3){width:18%;}
+  table.budget-range-table th:nth-child(4),table.budget-range-table td:nth-child(4){width:12%;}
+  tr.budget-product-row{cursor:pointer;}
+  tr.budget-product-row td{background:#e8edf4!important;color:var(--navy)!important;font-weight:800!important;text-transform:none;letter-spacing:.01em;padding:10px 12px!important;border-top:10px solid #fff;border-bottom:1px solid #d7dee8!important;transition:opacity .18s ease,filter .18s ease,background .18s ease;}
+  tr.budget-product-row:first-child td{border-top:0;}
+  tr.budget-product-row:hover td{background:#dde6f0!important;}
+  tr.budget-product-row.expanded td{background:#dceaf5!important;}
+  tr.budget-product-row.row-dimmed td{color:#a9b2bf!important;opacity:.48;filter:grayscale(1);}
+  tr.budget-product-row.row-dimmed:hover td{opacity:.68;}
+  .budget-product-toggle{display:inline-flex;align-items:center;justify-content:center;width:16px;margin-right:7px;color:var(--accent);font-size:9px;transition:transform .15s;user-select:none;}
+  .budget-product-toggle.open{transform:rotate(90deg);}
+  .budget-product-meta{font-size:11px;font-weight:600;color:#75849a;margin-left:8px;}
+  tr.budget-product-row.row-dimmed .budget-product-meta{color:#aeb6c1;}
+  tr.budget-range-row{cursor:pointer;}
+  tr.budget-range-row td{transition:opacity .18s ease,filter .18s ease,background .18s ease,color .18s ease;}
+  tr.budget-range-row td:first-child{padding-left:20px!important;font-weight:700;color:var(--navy);}
+  tr.budget-range-row.expanded td{background:#eef6ff;}
+  tr.budget-range-row.row-dimmed td{color:#aeb6c1!important;opacity:.42;filter:grayscale(1);}
+  tr.budget-range-row.row-dimmed:hover td{opacity:.62;}
+  tr.budget-range-row.row-dimmed .budget-delta{color:#aeb6c1!important;}
+  .budget-range-toggle{display:inline-flex;align-items:center;justify-content:center;width:16px;margin-right:7px;color:#7c93b5;font-size:9px;transition:transform .15s;user-select:none;}
+  .budget-range-toggle.open{transform:rotate(90deg);}
+  tr.budget-pub-row{cursor:help;}
+  tr.budget-pub-row td{background:#f7f8fb;font-size:11.8px;color:var(--text);}
+  tr.budget-pub-row td:first-child{padding-left:52px!important;font-weight:600;color:var(--text);}
+  tr.budget-pub-row:hover td{background:#eef2f7!important;}
+  .budget-hover-tooltip{position:fixed;z-index:9999;display:none;width:min(940px,calc(100vw - 24px));max-height:min(520px,calc(100vh - 24px));overflow:auto;background:#fff;border:1px solid #cbd5e1;border-radius:10px;box-shadow:0 14px 36px rgba(13,35,64,.22);padding:12px 14px;pointer-events:auto;color:var(--text);font-size:11.5px;line-height:1.35;}
+  .budget-hover-tooltip.visible{display:block;}
+  .budget-tooltip-title{font-size:13px;font-weight:800;color:var(--navy);padding-bottom:7px;margin-bottom:7px;border-bottom:1px solid var(--border);}
+  .budget-tooltip-year{font-size:11px;font-weight:800;color:#526277;text-transform:uppercase;letter-spacing:.035em;margin:8px 0 5px;}
+  .budget-tooltip-empty{color:var(--muted);font-style:italic;padding:3px 0 5px;}
+  .budget-tooltip-table{display:grid;grid-template-columns:minmax(270px,2.3fr) minmax(110px,1fr) minmax(170px,1.45fr) minmax(86px,.65fr);border:1px solid #e5e9ef;border-radius:7px;overflow:visible;}
+  .budget-tooltip-cell{padding:5px 7px;border-bottom:1px solid #edf0f4;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .budget-tooltip-cell.has-more-products{position:relative;overflow:visible;}
+  .budget-tooltip-head{background:#eef2f7;color:#536176;font-weight:700;font-size:10.5px;}
+  .budget-tooltip-amount{text-align:right;font-weight:800;color:var(--navy);}
+  .budget-tooltip-table .budget-tooltip-cell:nth-last-child(-n+4){border-bottom:none;}
+  .budget-tooltip-shared{display:inline-block;margin-left:5px;padding:1px 5px;border-radius:8px;background:#edf7f0;color:#237a45;font-size:9.5px;font-weight:700;vertical-align:1px;}
+  .budget-tooltip-more-wrap{position:relative;display:inline-block;overflow:visible;}
+  .budget-tooltip-more-products{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:9px;background:#fff3d6;border:1px solid #f0cf82;color:#8a5a00;font-family:inherit;font-size:9.5px;line-height:1.35;font-weight:800;vertical-align:1px;cursor:pointer;}
+  .budget-tooltip-more-products.ambiguous{background:#f5efff;border-color:#d9c7f2;color:#68449a;}
+  .budget-tooltip-more-popover{display:none;position:fixed;z-index:10050;left:0;top:0;width:min(560px,calc(100vw - 32px));max-height:min(360px,calc(100vh - 32px));overflow:auto;padding:14px 16px;background:#fff;border:1px solid #d9c7f2;border-radius:10px;box-shadow:0 14px 34px rgba(64,32,96,.24);color:var(--text);font-size:12px;font-weight:400;line-height:1.55;white-space:normal;text-align:left;}
+  .budget-tooltip-more-wrap.open{z-index:10060;}
+  .budget-tooltip-more-wrap.open .budget-tooltip-more-popover{display:block;}
+  .budget-tooltip-more-products:hover,.budget-tooltip-more-products:focus{background:#ffe8aa;border-color:#dcae45;outline:none;}
+  .budget-tooltip-more-title{font-size:13px;font-weight:800;color:var(--navy);margin-bottom:7px;}
+  .budget-tooltip-more-line{margin-top:5px;}
+  .budget-tooltip-more-total{margin-top:10px;padding-top:9px;border-top:1px solid #eadcf8;color:#7e22ce;font-size:14px;font-weight:900;}
+  .budget-tooltip-more-note{margin-top:8px;color:var(--muted);font-size:10.5px;}
+  .budget-delta{font-weight:800;}
+  .budget-delta.up{color:var(--green);}
+  .budget-delta.down{color:#ef123d;}
+  .budget-delta.flat{color:var(--muted);}
+  .budget-note{margin-top:10px;font-size:11px;color:#8792a2;line-height:1.45;}
+
 </style>
 </head>
 <body>
@@ -211,6 +279,8 @@
   </div>
 </main>
 
+<div id="budgetHoverTooltip" class="budget-hover-tooltip" role="tooltip" aria-hidden="true"></div>
+
 <script>
 let DATA = [];
 let ALL_YEARS = [];
@@ -223,6 +293,11 @@ let selectedPubs = {}; // { Digital: Set([...]), Print: Set([...]), Eventos: Set
 let ALL_COMERCIALES = [];
 let selectedSector = '';
 let expandedProductos = new Set(); // claves "canal|||producto" con el desglose abierto
+let canalViewMode = {Digital:'anunciantes',Print:'anunciantes',Eventos:'anunciantes'};
+let expandedBudgetProduct = {Digital:null,Print:null,Eventos:null}; // un producto abierto por canal; todos empiezan plegados
+let expandedBudgetRanges = new Set(); // claves "canal|||producto|||rango" abiertas en la vista presupuestaria
+let budgetTooltipRegistry = new Map();
+let budgetTooltipSeq = 0;
 const CANAL_FECHAS = {};
 const CANALES = ['Digital','Print','Eventos'];
 const CANAL_ICON = {Digital:'💻',Print:'📰',Eventos:'🎤'};
@@ -293,6 +368,156 @@ function getPublicacion(d){
   if(normalize(raw).includes('fotogramas')) return 'FOTOGRAMAS';
   return raw;
 }
+
+
+/* ────────────── MARCA VISUAL: MÁS PRODUCTOS EN PEDIDOS INTERNACIONALES J ──────────────
+   Esta lógica NO modifica el ingreso de la línea ni su franja presupuestaria.
+   Solo detecta si una activación J - PAGO INTERNACIONAL DIRECTO tiene líneas
+   compatibles de Article Translated y/o Content Ignition, para marcarla en el tooltip. */
+const J_MORE_PRODUCTS=['Article Translated','Content Ignition'];
+function isInternationalDirectOrder(it){
+  const n=normalize(it&&it.claseOrden);
+  return n==='j - pago internacional directo'||n==='j-pago internacional directo'||(n.startsWith('j')&&n.includes('pago internacional directo'));
+}
+function isJMoreProduct(producto){
+  const n=normalize(producto);
+  return J_MORE_PRODUCTS.some(p=>n===normalize(p));
+}
+function jMoreProductsMatchKey(it){
+  return [
+    it&&it.anio,
+    it&&it.mes,
+    normalize(it&&it.anunciante),
+    normalize(it&&it.marca),
+    normalize(getPublicacion(it)),
+    normalize(it&&it.comercial)
+  ].join('|||');
+}
+function jMoreProductsRepairKey(it){
+  return [
+    jMoreProductsMatchKey(it),
+    normalize(it&&it.producto),
+    normalize(it&&it.familia),
+    normalize(it&&it.canal),
+    normalize(it&&it.team)
+  ].join('|||');
+}
+function cleanJMoreProductRows(sourceItems){
+  const groups=new Map();
+  (sourceItems||[])
+    .filter(it=>isInternationalDirectOrder(it)&&isJMoreProduct(it.producto))
+    .forEach((it,idx)=>{
+      const key=jMoreProductsRepairKey(it);
+      if(!groups.has(key)) groups.set(key,[]);
+      groups.get(key).push({...it,_sourceOrder:idx});
+    });
+
+  const cleaned=[];
+  groups.forEach(groupItems=>{
+    const positives=groupItems.filter(it=>it.importe>0).map(it=>({...it,_used:false}));
+    const negatives=groupItems.filter(it=>it.importe<0).map(it=>({...it,_used:false}));
+
+    // Reparos exactos.
+    negatives.forEach(neg=>{
+      const target=Math.round(Math.abs(neg.importe)*100);
+      const exact=positives.find(pos=>!pos._used&&Math.round(pos.importe*100)===target);
+      if(exact){ exact._used=true; neg._used=true; }
+    });
+
+    // Reparos parciales sobre la positiva superviviente de mayor importe.
+    negatives.forEach(neg=>{
+      if(neg._used) return;
+      const target=Math.round(Math.abs(neg.importe)*100);
+      const partial=positives
+        .filter(pos=>!pos._used&&Math.round(pos.importe*100)>target)
+        .sort((a,b)=>b.importe-a.importe||a._sourceOrder-b._sourceOrder)[0];
+      if(partial){
+        partial.importe=Math.round((partial.importe-Math.abs(neg.importe))*100)/100;
+        neg._used=true;
+      }
+    });
+
+    positives.filter(pos=>!pos._used&&pos.importe>0).forEach(pos=>cleaned.push(pos));
+  });
+  return cleaned.map(({_sourceOrder,_used,...it})=>it);
+}
+function markJMoreProducts(mainItems,allFilteredRows){
+  const result=(mainItems||[]).map(it=>({...it}));
+  const mainsByKey=new Map();
+  result.forEach(it=>{
+    if(it.importe<=0||!isInternationalDirectOrder(it)||isJMoreProduct(it.producto)) return;
+    const key=jMoreProductsMatchKey(it);
+    if(!mainsByKey.has(key)) mainsByKey.set(key,[]);
+    mainsByKey.get(key).push(it);
+  });
+
+  const complementsByKey=new Map();
+  cleanJMoreProductRows(allFilteredRows).forEach(it=>{
+    const key=jMoreProductsMatchKey(it);
+    if(!complementsByKey.has(key)) complementsByKey.set(key,[]);
+    complementsByKey.get(key).push(it);
+  });
+
+  complementsByKey.forEach((complements,key)=>{
+    const mains=mainsByKey.get(key)||[];
+    if(mains.length===0) return;
+    const byProduct=new Map();
+    complements.forEach(it=>{
+      const label=it.producto||'(sin producto)';
+      byProduct.set(label,(byProduct.get(label)||0)+it.importe);
+    });
+    const components=Array.from(byProduct.entries()).map(([producto,importe])=>({
+      producto,
+      importe:Math.round(importe*100)/100
+    }));
+    if(components.length===0) return;
+
+    if(mains.length===1){
+      mains[0].jMoreProducts=true;
+      mains[0].jMoreProductsComponents=components;
+    }else{
+      mains.forEach(main=>{
+        main.jMoreProducts=true;
+        main.jMoreProductsAmbiguous=true;
+        main.jMoreProductsMainCount=mains.length;
+        main.jMoreProductsComponents=components;
+      });
+    }
+  });
+  return result;
+}
+function jMoreProductsTooltip(it){
+  const components=(it&&it.jMoreProductsComponents)||[];
+  const detail=components.map(c=>`${c.producto}: ${formatEURTooltip(c.importe)}`).join(' + ');
+  const extras=components.reduce((sum,c)=>sum+c.importe,0);
+  const combined=Math.round(((Number(it&&it.importe)||0)+extras)*100)/100;
+  if(it&&it.jMoreProductsAmbiguous){
+    return `Más productos encontrados (${detail}), pero hay ${it.jMoreProductsMainCount||'varias'} líneas principales compatibles y no se asignan automáticamente. El ingreso y la franja mostrados no cambian.`;
+  }
+  return `Caso internacional J. Ingreso de esta línea: ${formatEURTooltip(it&&it.importe)}. Más productos: ${detail}. Total conjunto: ${formatEURTooltip(combined)}. El ingreso y la franja mostrados no cambian.`;
+}
+function jMoreProductsPopoverHtml(it){
+  const components=(it&&it.jMoreProductsComponents)||[];
+  const detail=components.map(c=>`${escapeHtml(c.producto)}: ${formatEURTooltip(c.importe)}`).join(' + ');
+  const extras=components.reduce((sum,c)=>sum+c.importe,0);
+  const combined=Math.round(((Number(it&&it.importe)||0)+extras)*100)/100;
+  if(it&&it.jMoreProductsAmbiguous){
+    return `<div class="budget-tooltip-more-popover" role="note">
+      <div class="budget-tooltip-more-title">Más productos encontrados</div>
+      <div class="budget-tooltip-more-line">${detail}</div>
+      <div class="budget-tooltip-more-line">Hay ${it.jMoreProductsMainCount||'varias'} líneas principales compatibles y no se asignan automáticamente.</div>
+      <div class="budget-tooltip-more-note">El ingreso y la franja mostrados no cambian.</div>
+    </div>`;
+  }
+  return `<div class="budget-tooltip-more-popover" role="note">
+    <div class="budget-tooltip-more-title">Caso internacional J</div>
+    <div class="budget-tooltip-more-line">Ingreso de esta línea: ${formatEURTooltip(it&&it.importe)}</div>
+    <div class="budget-tooltip-more-line">Más productos: ${detail}</div>
+    <div class="budget-tooltip-more-total">Total conjunto: ${formatEURTooltip(combined)}</div>
+    <div class="budget-tooltip-more-note">El ingreso y la franja mostrados no cambian.</div>
+  </div>`;
+}
+
 function findColIndex(headerRow, aliases){
   const nh=headerRow.map(normalize);
   for(const a of aliases){ const i=nh.indexOf(normalize(a)); if(i!==-1) return i; }
@@ -317,8 +542,32 @@ function formatInt(val){
   const sign=val<0?'-':'';
   return sign+Math.abs(Math.round(val)).toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.');
 }
+function calcCountPct(cur,prev){
+  if(prev>0) return ((cur-prev)/prev)*100;
+  if(cur>0) return 100;
+  return null;
+}
+function formatPctValue(val){
+  if(val===null||val===undefined||!isFinite(val)) return '—';
+  const rounded=Math.round(val*10)/10;
+  const abs=Math.abs(rounded);
+  const shown=Number.isInteger(abs)?abs.toFixed(0):abs.toFixed(1).replace('.',',');
+  return (rounded>0?'+':(rounded<0?'-':''))+shown+'%';
+}
+function pctClass(val){
+  if(val===null||Math.abs(val)<0.05) return 'flat';
+  return val>0?'up':'down';
+}
 function formatEURExact(val){
   if(val===null||val===undefined||isNaN(val)) return '-';
+  const sign=val<0?'-':'';
+  const str=Math.abs(Math.round(val)).toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+  return sign+str+'\u00A0\u20AC';
+}
+function formatEURTooltip(val){
+  if(val===null||val===undefined||isNaN(val)) return '-';
+  // Forzado manual: algunos navegadores no separan los importes de cuatro cifras
+  // en es-ES (1013 en vez de 1.013). Aquí siempre mostramos punto de millar.
   const sign=val<0?'-':'';
   const str=Math.abs(Math.round(val)).toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.');
   return sign+str+'\u00A0\u20AC';
@@ -443,9 +692,9 @@ function processWorkbook(data,canal,filename){
       let pubLabel='Elle';
       if(isGourmet) pubLabel='Elle Gourmet';
       else if(isTravel) pubLabel='Elle Travel';
-      DATA.push({sector,team,anio,mes,importe,canal,anunciante,marca,comercial,publicacion,detalle:detalleRaw,producto,familia,pubLabel});
+      DATA.push({sector,team,anio,mes,importe,canal,anunciante,marca,comercial,publicacion,detalle:detalleRaw,producto,familia,claseOrden:rawClase,pubLabel});
     } else {
-      DATA.push({sector,team,anio,mes,importe,canal,anunciante,marca,comercial,publicacion,detalle:detalleRaw,producto,familia});
+      DATA.push({sector,team,anio,mes,importe,canal,anunciante,marca,comercial,publicacion,detalle:detalleRaw,producto,familia,claseOrden:rawClase});
     }
   }
   rebuildYears();
@@ -683,48 +932,86 @@ function computeRealPubItems(pubItems){
   pubItems.forEach(it=>{
     const key=normalize(it.anunciante)+'|||'+normalize(it.marca);
     if(!groups.has(key)) groups.set(key,{pos:[],neg:[]});
-    if(it.importe>0) groups.get(key).pos.push(it);
-    else if(it.importe<0) groups.get(key).neg.push(it);
+    if(it.importe>0) groups.get(key).pos.push({...it});
+    else if(it.importe<0) groups.get(key).neg.push({...it});
   });
+
   const realItems=[];
+  const largestCompatibleIndex=(items,target,comercialNorm,requireSameCommercial)=>{
+    let bestIdx=-1;
+    items.forEach((p,idx)=>{
+      const cents=Math.round(p.importe*100);
+      if(cents<=Math.round(target*100)) return;
+      if(requireSameCommercial&&normalize(p.comercial||'')!==comercialNorm) return;
+      if(bestIdx<0||p.importe>items[bestIdx].importe) bestIdx=idx;
+    });
+    return bestIdx;
+  };
+
   groups.forEach(g=>{
     const posItems=g.pos.slice();
+
+    // 1) Reparos: exactos primero; si no, parciales sobre la positiva MAYOR.
+    // Siempre se prioriza el mismo comercial antes de caer a cualquier comercial.
     g.neg.forEach(nIt=>{
       const target=Math.abs(nIt.importe);
+      const targetCents=Math.round(target*100);
       const negComercial=normalize(nIt.comercial||'');
-      // Prioriza cancelar contra una positiva del MISMO comercial (evita que
-      // el reparo de una persona anule por error la línea de otra cuando
-      // varias positivas comparten el mismo importe). Si no hay ninguna del
-      // mismo comercial, cae al comportamiento anterior (cualquier importe igual).
-      let exactIdx=posItems.findIndex(p=>Math.round(p.importe*100)===Math.round(target*100)&&normalize(p.comercial||'')===negComercial);
+
+      let exactIdx=posItems.findIndex(p=>
+        Math.round(p.importe*100)===targetCents&&normalize(p.comercial||'')===negComercial);
       if(exactIdx<0){
-        exactIdx=posItems.findIndex(p=>Math.round(p.importe*100)===Math.round(target*100));
+        exactIdx=posItems.findIndex(p=>Math.round(p.importe*100)===targetCents);
       }
-      if(exactIdx>=0) posItems.splice(exactIdx,1);
+      if(exactIdx>=0){
+        posItems.splice(exactIdx,1);
+        return;
+      }
+
+      let partialIdx=largestCompatibleIndex(posItems,target,negComercial,true);
+      if(partialIdx<0) partialIdx=largestCompatibleIndex(posItems,target,negComercial,false);
+      if(partialIdx>=0){
+        posItems[partialIdx]={
+          ...posItems[partialIdx],
+          importe:Math.round((posItems[partialIdx].importe-target)*100)/100
+        };
+      }
+      // Si no hay positiva igual o mayor, el reparo queda huérfano: no resta ni cuenta.
     });
+
+    // 2) Venta compartida Madrid + Barcelona: mismo importe, comerciales distintos.
     const byImporte=new Map();
     posItems.forEach(it=>{
       const ik=Math.round(it.importe*100);
       if(!byImporte.has(ik)) byImporte.set(ik,[]);
       byImporte.get(ik).push(it);
     });
+
     byImporte.forEach(subGroup=>{
       const madridItems=subGroup.filter(it=>(it.team||'').toLowerCase()==='madrid');
       const barcelonaItems=subGroup.filter(it=>(it.team||'').toLowerCase()==='barcelona');
-      const otherItems=subGroup.filter(it=>{const t=(it.team||'').toLowerCase();return t!=='madrid'&&t!=='barcelona';});
+      const otherItems=subGroup.filter(it=>{
+        const t=(it.team||'').toLowerCase();
+        return t!=='madrid'&&t!=='barcelona';
+      });
       const pairs=Math.min(madridItems.length,barcelonaItems.length);
-      let pairedM=0,pairedB=0;
       for(let i=0;i<pairs;i++){
-        if(normalize(madridItems[i].comercial||'')!==normalize(barcelonaItems[i].comercial||'')){
-          realItems.push({...madridItems[i],importe:madridItems[i].importe+barcelonaItems[i].importe,comercial:(madridItems[i].comercial||'')+' + '+(barcelonaItems[i].comercial||'')});
-          pairedM++;pairedB++;
-        } else {
-          realItems.push({...madridItems[i]});
-          realItems.push({...barcelonaItems[i]});
+        const madrid=madridItems[i];
+        const barcelona=barcelonaItems[i];
+        if(normalize(madrid.comercial||'')!==normalize(barcelona.comercial||'')){
+          realItems.push({
+            ...madrid,
+            importe:Math.round((madrid.importe+barcelona.importe)*100)/100,
+            comercial:(madrid.comercial||'')+' + '+(barcelona.comercial||''),
+            ventaCompartida:true
+          });
+        }else{
+          realItems.push({...madrid});
+          realItems.push({...barcelona});
         }
       }
-      for(let i=pairedM;i<madridItems.length;i++) realItems.push({...madridItems[i]});
-      for(let i=pairedB;i<barcelonaItems.length;i++) realItems.push({...barcelonaItems[i]});
+      for(let i=pairs;i<madridItems.length;i++) realItems.push({...madridItems[i]});
+      for(let i=pairs;i<barcelonaItems.length;i++) realItems.push({...barcelonaItems[i]});
       otherItems.forEach(it=>realItems.push({...it}));
     });
   });
@@ -741,7 +1028,7 @@ function computeRealPubStats(pubItems){
 function computeGroupRealValues(rows){
   const byPub=new Map();
   rows.forEach(it=>{
-    const key=it.publicacion||'';
+    const key=getPublicacion(it)||'';
     if(!byPub.has(key)) byPub.set(key,[]);
     byPub.get(key).push(it);
   });
@@ -755,7 +1042,7 @@ function computeGroupRealValues(rows){
 function computeGroupRealItems(rows){
   const byPub=new Map();
   rows.forEach(it=>{
-    const key=it.publicacion||'';
+    const key=getPublicacion(it)||'';
     if(!byPub.has(key)) byPub.set(key,[]);
     byPub.get(key).push(it);
   });
@@ -772,14 +1059,48 @@ const FAMILIAS_FUSION_NORM=['Display','Video'].map(normalize);
 function isFamiliaFusionRows(rows){
   return rows.some(d=>FAMILIAS_FUSION_NORM.includes(normalize(d.familia)));
 }
-function computeFusionMergedValues(rows){
+function computeFusionMergedItems(rows){
   const realItems=computeGroupRealItems(rows);
   const map=new Map();
   realItems.forEach(it=>{
     const key=normalize(it.anunciante)+'|||'+normalize(it.marca)+'|||'+normalize(it.comercial)+'|||'+normalize(it.sector)+'|||'+(it.mes===null||it.mes===undefined?'':it.mes)+'|||'+it.anio;
-    map.set(key,(map.get(key)||0)+it.importe);
+    if(!map.has(key)){
+      map.set(key,{...it,importe:0,_publicaciones:new Set()});
+    }
+    const entry=map.get(key);
+    entry.importe+=it.importe;
+    entry._publicaciones.add(getPublicacion(it));
   });
-  return Array.from(map.values()).map(v=>Math.round(v*100)/100);
+  return Array.from(map.values()).map(it=>{
+    const pubs=Array.from(it._publicaciones).filter(Boolean).sort((a,b)=>a.localeCompare(b,'es'));
+    const {_publicaciones,...rest}=it;
+    return {
+      ...rest,
+      importe:Math.round(rest.importe*100)/100,
+      _displayPublication:pubs.length<=1?(pubs[0]||'SIN PUBLICACIÓN'):'Varias publicaciones',
+      _publicationTitle:pubs.join(', ')
+    };
+  });
+}
+function computeFusionMergedValues(rows){
+  return computeFusionMergedItems(rows).map(it=>it.importe);
+}
+
+function computeRealItemsByProduct(rows){
+  const byProducto=new Map();
+  rows.forEach(d=>{
+    const key=d.producto||'(sin producto)';
+    if(!byProducto.has(key)) byProducto.set(key,[]);
+    byProducto.get(key).push(d);
+  });
+  let items=[];
+  byProducto.forEach(prodRows=>{
+    const prodItems=isFamiliaFusionRows(prodRows)
+      ?computeFusionMergedItems(prodRows)
+      :computeGroupRealItems(prodRows);
+    items=items.concat(prodItems);
+  });
+  return items;
 }
 
 
@@ -813,7 +1134,7 @@ const FAMILIAS_EXCLUIDAS_NORM=['Programatica Display Directo','Programatica Disp
 const ANUNCIANTES_EXCLUIDOS_NORM=['AJUSTE PROGRAMATICA'].map(normalize);
 // Productos que se excluyen por completo del dashboard (costes/gastos internos, no son activaciones reales).
 const PRODUCTOS_EXCLUIDOS_NORM=['Gastos Ejecución (Production Cost)','Article (Production Cost)'].map(normalize);
-function getFilteredRowsForCanal(canal){
+function getFilteredRowsForCanal(canal,year=selectedYear){
   let rows=getDataForTab(activeTab).filter(d=>d.canal===canal);
   rows=rows.filter(d=>!FAMILIAS_EXCLUIDAS_NORM.includes(normalize(d.familia)));
   rows=rows.filter(d=>!ANUNCIANTES_EXCLUIDOS_NORM.includes(normalize(d.anunciante)));
@@ -824,7 +1145,7 @@ function getFilteredRowsForCanal(canal){
   if(selectedSector) rows=rows.filter(d=>normalize(d.sector)===normalize(selectedSector));
   const pubsCanal=selectedPubs[canal];
   if(pubsCanal) rows=rows.filter(d=>pubsCanal.has(getPublicacion(d)));
-  rows=rows.filter(d=>d.anio===selectedYear);
+  rows=rows.filter(d=>d.anio===year);
   if(hasMesColumn&&selectedMonths.size>0) rows=rows.filter(d=>d.mes!==null&&selectedMonths.has(d.mes));
   return rows;
 }
@@ -854,7 +1175,312 @@ function computeProductosParaCanal(canal,franja){
   items.sort((a,b)=>b.realCount-a.realCount);
   return items;
 }
-function renderCanalBlock(canal,franja){
+function renderCanalHeader(canal){
+  const mode=canalViewMode[canal]||'anunciantes';
+  return `<div class="block-card-title channel-title-row">
+    <span class="channel-title-label"><span class="${CANAL_DOT[canal]}">●</span> ${canal}</span>
+    <span class="channel-view-toggle" aria-label="Vista de ${escapeHtml(canal)}">
+      <button type="button" class="channel-view-btn${mode==='anunciantes'?' active':''}" data-canal-view="anunciantes" data-canal="${escapeHtml(canal)}">Anunciantes</button>
+      <button type="button" class="channel-view-btn${mode==='franjas'?' active':''}" data-canal-view="franjas" data-canal="${escapeHtml(canal)}">Franja Presupuestaria</button>
+    </span>
+  </div>`;
+}
+function setCanalView(canal,mode){
+  canalViewMode[canal]=mode;
+  render();
+}
+function toggleBudgetProduct(canal,producto){
+  const current=expandedBudgetProduct[canal]||null;
+  expandedBudgetProduct[canal]=current===producto?null:producto;
+  // Al cambiar o cerrar el producto, sus franjas vuelven a empezar plegadas.
+  expandedBudgetRanges=new Set([...expandedBudgetRanges].filter(key=>!key.startsWith(canal+'|||')));
+  render();
+}
+function toggleBudgetRange(canal,producto,rangeId){
+  const prefix=canal+'|||'+producto+'|||';
+  const key=prefix+rangeId;
+  const wasOpen=expandedBudgetRanges.has(key);
+  // Solo una franja abierta por producto: al cambiar de franja, la anterior
+  // se cierra y el resto queda atenuado para centrar la lectura.
+  expandedBudgetRanges=new Set([...expandedBudgetRanges].filter(k=>!k.startsWith(prefix)));
+  if(!wasOpen) expandedBudgetRanges.add(key);
+  render();
+}
+function getBudgetPublicationInfo(item){
+  const label=item._displayPublication||getPublicacion(item)||'SIN PUBLICACIÓN';
+  const title=item._publicationTitle||label;
+  return {label,title};
+}
+function buildPublicationCounts(items){
+  const map=new Map();
+  items.forEach(it=>{
+    const info=getBudgetPublicationInfo(it);
+    if(!map.has(info.label)) map.set(info.label,{label:info.label,title:info.title,count:0,items:[]});
+    const entry=map.get(info.label);
+    entry.count++;
+    entry.items.push(it);
+  });
+  return map;
+}
+function renderBudgetTooltipTable(items){
+  if(!items||items.length===0) return '<div class="budget-tooltip-empty">Sin líneas en este año.</div>';
+  const sorted=items.slice().sort((a,b)=>b.importe-a.importe||(a.anunciante||'').localeCompare(b.anunciante||'','es')||(a.marca||'').localeCompare(b.marca||'','es'));
+  const cells=sorted.map(it=>{
+    const shared=it.ventaCompartida?'<span class="budget-tooltip-shared">Compartida</span>':'';
+    const moreProducts=it.jMoreProducts
+      ?`<span class="budget-tooltip-more-wrap"><button type="button" class="budget-tooltip-more-products${it.jMoreProductsAmbiguous?' ambiguous':''}" aria-expanded="false" aria-label="${escapeHtml(jMoreProductsTooltip(it))}">Más productos</button>${jMoreProductsPopoverHtml(it)}</span>`
+      :'';
+    return `<div class="budget-tooltip-cell${it.jMoreProducts?' has-more-products':''}" title="${escapeHtml(it.anunciante||'—')}">${escapeHtml(it.anunciante||'—')}${moreProducts}</div>
+      <div class="budget-tooltip-cell" title="${escapeHtml(it.marca||'—')}">${escapeHtml(it.marca||'—')}</div>
+      <div class="budget-tooltip-cell" title="${escapeHtml(it.comercial||'—')}">${escapeHtml(it.comercial||'—')}${shared}</div>
+      <div class="budget-tooltip-cell budget-tooltip-amount">${formatEURTooltip(it.importe)}</div>`;
+  }).join('');
+  return `<div class="budget-tooltip-table">
+    <div class="budget-tooltip-cell budget-tooltip-head">Anunciante</div>
+    <div class="budget-tooltip-cell budget-tooltip-head">Marca</div>
+    <div class="budget-tooltip-cell budget-tooltip-head">Comercial</div>
+    <div class="budget-tooltip-cell budget-tooltip-head budget-tooltip-amount">Ingreso real</div>
+    ${cells}
+  </div>`;
+}
+function registerBudgetTooltip(publicacion,title,currentItems,previousItems){
+  const key='budget-tip-'+(++budgetTooltipSeq);
+  budgetTooltipRegistry.set(key,`<div class="budget-tooltip-title" title="${escapeHtml(title||publicacion)}">${escapeHtml(publicacion)}</div>
+    <div class="budget-tooltip-year">${selectedYear} · ${currentItems.length} línea${currentItems.length===1?'':'s'}</div>
+    ${renderBudgetTooltipTable(currentItems)}
+    <div class="budget-tooltip-year">${selectedYear-1} · ${previousItems.length} línea${previousItems.length===1?'':'s'}</div>
+    ${renderBudgetTooltipTable(previousItems)}`);
+  return key;
+}
+let budgetTooltipHideTimer=null;
+let budgetTooltipAnchorRow=null;
+let budgetTooltipPendingRow=null;
+function cancelBudgetTooltipHide(){
+  if(budgetTooltipHideTimer!==null){
+    clearTimeout(budgetTooltipHideTimer);
+    budgetTooltipHideTimer=null;
+  }
+}
+function hideBudgetTooltip(openPending=false){
+  cancelBudgetTooltipHide();
+  const tooltip=document.getElementById('budgetHoverTooltip');
+  if(!tooltip) return;
+  const pending=(openPending&&budgetTooltipPendingRow&&document.body.contains(budgetTooltipPendingRow)&&budgetTooltipPendingRow.matches(':hover'))
+    ?budgetTooltipPendingRow:null;
+  tooltip.classList.remove('visible');
+  tooltip.setAttribute('aria-hidden','true');
+  budgetTooltipAnchorRow=null;
+  budgetTooltipPendingRow=null;
+  // Si el usuario queria consultar deliberadamente otra publicacion, se abre
+  // solo despues de cerrar la anterior. Mientras atraviesa otras filas para
+  // llegar al cuadro, la posicion original permanece completamente bloqueada.
+  if(pending) setTimeout(()=>showBudgetTooltip(pending),0);
+}
+function scheduleBudgetTooltipHide(){
+  cancelBudgetTooltipHide();
+  budgetTooltipHideTimer=setTimeout(()=>hideBudgetTooltip(true),550);
+}
+function enterBudgetTooltip(){
+  budgetTooltipPendingRow=null;
+  cancelBudgetTooltipHide();
+}
+function positionBudgetTooltip(row){
+  const tooltip=document.getElementById('budgetHoverTooltip');
+  if(!row||!tooltip||!tooltip.classList.contains('visible')) return;
+  const gap=0;
+  const margin=8;
+  const anchor=row.getBoundingClientRect();
+  const rect=tooltip.getBoundingClientRect();
+
+  // El cuadro queda anclado a la fila, no al puntero. Se intenta colocar
+  // debajo y alineado con la publicación; si no cabe, se coloca encima.
+  let left=anchor.left+Math.min(86,Math.max(0,anchor.width*.04));
+  let top=anchor.bottom-1;
+  if(top+rect.height>window.innerHeight-margin){
+    top=anchor.top-rect.height+1;
+  }
+  if(top<margin) top=margin;
+  if(left+rect.width>window.innerWidth-margin){
+    left=window.innerWidth-rect.width-margin;
+  }
+  tooltip.style.left=Math.max(margin,left)+'px';
+  tooltip.style.top=Math.max(margin,top)+'px';
+}
+function showBudgetTooltip(row){
+  cancelBudgetTooltipHide();
+  const key=row.dataset.budgetTooltipKey;
+  const html=budgetTooltipRegistry.get(key);
+  const tooltip=document.getElementById('budgetHoverTooltip');
+  if(!html||!tooltip) return;
+  budgetTooltipAnchorRow=row;
+  budgetTooltipPendingRow=null;
+  tooltip.innerHTML=html;
+  tooltip.classList.add('visible');
+  tooltip.setAttribute('aria-hidden','false');
+  positionBudgetTooltip(row);
+}
+function budgetBandLabel(index){
+  if(index===0) return 'De 1 € a 999 €';
+  return `De ${formatInt(index*1000)} € a ${formatInt(index*1000+999)} €`;
+}
+// La vista presupuestaria usa exactamente los productos que aparecen con
+// triángulo/desglose en la vista Anunciantes del año seleccionado.
+function getBudgetProductsForCanal(canal){
+  return computeProductosParaCanal(canal,{desde:null,hasta:null})
+    .filter(it=>it.desglosable);
+}
+function buildBudgetRangesForProduct(canal,producto){
+  const prevYear=selectedYear-1;
+  const sameProduct=d=>(d.producto||'(sin producto)')===producto;
+  const currentAllRows=getFilteredRowsForCanal(canal,selectedYear);
+  const previousAllRows=getFilteredRowsForCanal(canal,prevYear);
+  const currentRows=currentAllRows.filter(sameProduct);
+  const previousRows=previousAllRows.filter(sameProduct);
+
+  // Negativos y 0 € se conservan tal cual llegan en el Excel.
+  // Desde 1 € se aplica la fuente única de línea real del dashboard.
+  // Después solo se AÑADE una marca informativa a las líneas internacionales J
+  // que tengan Article Translated y/o Content Ignition compatibles. No se altera
+  // el importe ni la franja en la que cae la línea.
+  const currentReal=markJMoreProducts(
+    (isFamiliaFusionRows(currentRows)?computeFusionMergedItems(currentRows):computeGroupRealItems(currentRows))
+      .filter(it=>it.importe>0),
+    currentAllRows
+  );
+  const previousReal=markJMoreProducts(
+    (isFamiliaFusionRows(previousRows)?computeFusionMergedItems(previousRows):computeGroupRealItems(previousRows))
+      .filter(it=>it.importe>0),
+    previousAllRows
+  );
+
+  const ranges=[
+    {
+      id:'negative',label:'En negativo',
+      currentItems:currentRows.filter(d=>d.importe<0),
+      previousItems:previousRows.filter(d=>d.importe<0)
+    },
+    {
+      id:'zero',label:'0 €',
+      currentItems:currentRows.filter(d=>d.importe===0),
+      previousItems:previousRows.filter(d=>d.importe===0)
+    }
+  ];
+
+  const allPositive=currentReal.concat(previousReal);
+  if(allPositive.length>0){
+    const maxBand=Math.max(...allPositive.map(it=>Math.floor(it.importe/1000)));
+    for(let index=0;index<=maxBand;index++){
+      const inBand=it=>Math.floor(it.importe/1000)===index;
+      ranges.push({
+        id:'band-'+index,
+        label:budgetBandLabel(index),
+        currentItems:currentReal.filter(inBand),
+        previousItems:previousReal.filter(inBand)
+      });
+    }
+  }
+  return {ranges,currentRows,previousRows,currentReal,previousReal,prevYear};
+}
+function renderBudgetPublicationRows(range){
+  const curMap=buildPublicationCounts(range.currentItems);
+  const prevMap=buildPublicationCounts(range.previousItems);
+  const labels=new Set([...curMap.keys(),...prevMap.keys()]);
+  return Array.from(labels).map(label=>{
+    const curEntry=curMap.get(label);
+    const prevEntry=prevMap.get(label);
+    const cur=curEntry?.count||0;
+    const prev=prevEntry?.count||0;
+    const title=curEntry?.title||prevEntry?.title||label;
+    return {label,title,cur,prev,currentItems:curEntry?.items||[],previousItems:prevEntry?.items||[],pct:calcCountPct(cur,prev)};
+  }).sort((a,b)=>b.cur-a.cur||b.prev-a.prev||a.label.localeCompare(b.label,'es')).map(r=>{
+    const tooltipKey=registerBudgetTooltip(r.label,r.title,r.currentItems,r.previousItems);
+    return `
+    <tr class="budget-pub-row" data-budget-tooltip-key="${tooltipKey}">
+      <td>${escapeHtml(r.label)}</td>
+      <td>${formatInt(r.cur)}</td>
+      <td>${formatInt(r.prev)}</td>
+      <td><span class="budget-delta ${pctClass(r.pct)}">${formatPctValue(r.pct)}</span></td>
+    </tr>`;
+  }).join('');
+}
+function renderBudgetProductRows(canal,productItem,activeProduct){
+  const producto=productItem.producto;
+  const {ranges,currentReal,previousReal}=buildBudgetRangesForProduct(canal,producto);
+  const totalCurrent=currentReal.length;
+  const totalPrevious=previousReal.length;
+  const isProductOpen=activeProduct===producto;
+  const anyProductOpen=!!activeProduct;
+  let productClass='budget-product-row';
+  if(isProductOpen) productClass+=' expanded';
+  else if(anyProductOpen) productClass+=' row-dimmed';
+
+  let html=`<tr class="${productClass}" data-budget-product-header="1" data-budget-canal="${escapeHtml(canal)}" data-budget-product="${escapeHtml(producto)}">
+    <td colspan="4"><span class="budget-product-toggle${isProductOpen?' open':''}">▶</span>${escapeHtml(producto)}<span class="budget-product-meta">${formatInt(totalCurrent)} líneas reales ${selectedYear} · ${formatInt(totalPrevious)} líneas reales ${selectedYear-1}</span></td>
+  </tr>`;
+
+  // Por defecto solo se muestra la cabecera del producto. Sus franjas aparecen
+  // únicamente al abrirlo, para que el bloque no se haga interminable.
+  if(!isProductOpen) return html;
+
+  const rangePrefix=canal+'|||'+producto+'|||';
+  const activeRangeKey=[...expandedBudgetRanges].find(key=>key.startsWith(rangePrefix))||null;
+  const activeRangeId=activeRangeKey?activeRangeKey.slice(rangePrefix.length):null;
+
+  html+=ranges.map(range=>{
+    const cur=range.currentItems.length;
+    const prev=range.previousItems.length;
+    const pct=calcCountPct(cur,prev);
+    const key=canal+'|||'+producto+'|||'+range.id;
+    const isOpen=expandedBudgetRanges.has(key);
+    const hasDetail=cur>0||prev>0;
+    const triangle=hasDetail
+      ?`<span class="budget-range-toggle${isOpen?' open':''}">▶</span>`
+      :`<span class="desglose-spacer"></span>`;
+    let rangeClass='budget-range-row';
+    if(isOpen) rangeClass+=' expanded';
+    else if(activeRangeId) rangeClass+=' row-dimmed';
+    let rangeHtml=`<tr class="${rangeClass}" data-budget-canal="${escapeHtml(canal)}" data-budget-product="${escapeHtml(producto)}" data-budget-range="${escapeHtml(range.id)}">
+      <td>${triangle}${range.label}</td>
+      <td>${formatInt(cur)}</td>
+      <td>${formatInt(prev)}</td>
+      <td><span class="budget-delta ${pctClass(pct)}">${formatPctValue(pct)}</span></td>
+    </tr>`;
+    if(isOpen&&hasDetail) rangeHtml+=renderBudgetPublicationRows(range);
+    return rangeHtml;
+  }).join('');
+  return html;
+}
+function renderBudgetRangeBlock(canal){
+  const prevYear=selectedYear-1;
+  const products=getBudgetProductsForCanal(canal);
+  if(products.length===0){
+    return `<div class="block-card">
+      ${renderCanalHeader(canal)}
+      <div class="empty-state" style="padding:30px 20px;"><p>No hay productos desplegables en la vista Anunciantes para los filtros seleccionados.</p></div>
+    </div>`;
+  }
+
+  let activeProduct=expandedBudgetProduct[canal]||null;
+  if(activeProduct&&!products.some(item=>item.producto===activeProduct)){
+    expandedBudgetProduct[canal]=null;
+    activeProduct=null;
+  }
+  const rowsHtml=products.map(productItem=>renderBudgetProductRows(canal,productItem,activeProduct)).join('');
+  return `<div class="block-card">
+    ${renderCanalHeader(canal)}
+    <table class="mini-canal-table budget-range-table">
+      <thead><tr>
+        <th>Producto / Rango de importe</th>
+        <th>Nº líneas (${selectedYear})</th>
+        <th>Nº líneas (${prevYear})</th>
+        <th>Δ</th>
+      </tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+    <div class="budget-note">Solo se incluyen los productos que pueden desplegarse en la vista <b>Anunciantes</b>. Pulsa el triángulo de un producto para ver sus franjas; el resto se atenuará para facilitar la lectura. Al desplegar una franja, las demás franjas del producto también quedarán en gris. Cada producto mantiene sus filas <b>En negativo</b> y <b>0 €</b> con las líneas tal como llegan en el Excel. Desde 1 € en adelante se utilizan las líneas reales: reparos exactos y parciales sobre la positiva compatible de mayor importe, prioridad del mismo comercial y venta compartida Madrid–Barcelona. Después puedes desplegar una franja para ver sus publicaciones.</div>
+  </div>`;
+}
+function renderAnunciantesCanalBlock(canal,franja){
   const items=computeProductosParaCanal(canal,franja);
   const showFranja=franja.hasta!==null;
   const totalLineas=items.reduce((s,it)=>s+it.realCount,0);
@@ -862,9 +1488,8 @@ function renderCanalBlock(canal,franja){
   const totalFranja=showFranja?items.reduce((s,it)=>s+(it.franjaCount||0),0):null;
 
   if(items.length===0){
-    return `
-    <div class="block-card">
-      <div class="block-card-title"><span class="${CANAL_DOT[canal]}">●</span> ${canal}</div>
+    return `<div class="block-card">
+      ${renderCanalHeader(canal)}
       <div class="empty-state" style="padding:30px 20px;"><p>Sin líneas reales para los filtros seleccionados.</p></div>
     </div>`;
   }
@@ -901,7 +1526,7 @@ function renderCanalBlock(canal,franja){
         <tr>
           <td class="truncate" title="${escapeHtml(d.anunciante)}">${escapeHtml(d.anunciante)||'—'}</td>
           <td class="truncate" title="${escapeHtml(d.marca)}">${escapeHtml(d.marca)||'—'}</td>
-          <td class="truncate" title="${escapeHtml(d.publicacion)}">${escapeHtml(d.publicacion)||'—'}</td>
+          <td class="truncate" title="${escapeHtml(getPublicacion(d))}">${escapeHtml(getPublicacion(d))||'—'}</td>
           <td class="truncate" title="${escapeHtml(d.comercial)}">${escapeHtml(d.comercial)||'—'}</td>
           <td class="desglose-ingreso">${formatEURExact(d.importe)}</td>
         </tr>`).join('');
@@ -917,15 +1542,13 @@ function renderCanalBlock(canal,franja){
               <col style="width:34%">
               <col style="width:18%">
             </colgroup>
-            <thead>
-              <tr>
-                <th>Anunciante</th>
-                <th>Marca</th>
-                <th>Publicación</th>
-                <th>Comercial</th>
-                <th class="desglose-ingreso-th">Ingreso exacto</th>
-              </tr>
-            </thead>
+            <thead><tr>
+              <th>Anunciante</th>
+              <th>Marca</th>
+              <th>Publicación</th>
+              <th>Comercial</th>
+              <th class="desglose-ingreso-th">Ingreso exacto</th>
+            </tr></thead>
             <tbody>${desgloseRows}</tbody>
           </table>
         </div>
@@ -935,32 +1558,35 @@ function renderCanalBlock(canal,franja){
     return html;
   }).join('');
 
-  return `
-    <div class="block-card">
-      <div class="block-card-title"><span class="${CANAL_DOT[canal]}">●</span> ${canal}</div>
-      <table class="mini-canal-table${showFranja?'':' no-franja'}">
-        <thead>
-          <tr>
-            <th>Producto</th>
-            <th class="franja-col" style="display:${showFranja?'table-cell':'none'}">Nº líneas en franja</th>
-            <th>Nº líneas reales</th>
-            <th>Ingreso total real</th>
-          </tr>
-        </thead>
-        <tbody>${rowsHtml}</tbody>
-        <tfoot>
-          <tr>
-            <td>Total</td>
-            <td class="franja-col" style="display:${showFranja?'table-cell':'none'}">${totalFranja!==null?formatInt(totalFranja):'—'}</td>
-            <td>${formatInt(totalLineas)}</td>
-            <td>${formatEUR(totalIngreso)}</td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>`;
+  return `<div class="block-card">
+    ${renderCanalHeader(canal)}
+    <table class="mini-canal-table${showFranja?'':' no-franja'}">
+      <thead><tr>
+        <th>Producto</th>
+        <th class="franja-col" style="display:${showFranja?'table-cell':'none'}">Nº líneas en franja</th>
+        <th>Nº líneas reales</th>
+        <th>Ingreso total real</th>
+      </tr></thead>
+      <tbody>${rowsHtml}</tbody>
+      <tfoot><tr>
+        <td>Total</td>
+        <td class="franja-col" style="display:${showFranja?'table-cell':'none'}">${totalFranja!==null?formatInt(totalFranja):'—'}</td>
+        <td>${formatInt(totalLineas)}</td>
+        <td>${formatEUR(totalIngreso)}</td>
+      </tr></tfoot>
+    </table>
+  </div>`;
+}
+function renderCanalBlock(canal,franja){
+  return canalViewMode[canal]==='franjas'
+    ?renderBudgetRangeBlock(canal)
+    :renderAnunciantesCanalBlock(canal,franja);
 }
 function render(){
   const container=document.getElementById('blocksContainer');
+  hideBudgetTooltip();
+  budgetTooltipRegistry=new Map();
+  budgetTooltipSeq=0;
   if(DATA.length===0){
     container.innerHTML='<div class="empty-state"><p>📊 <b>Sin datos</b></p><p>Esperando la carga automática de los Excel…</p></div>';
     return;
@@ -969,7 +1595,138 @@ function render(){
   container.innerHTML=CANALES.map(canal=>renderCanalBlock(canal,franja)).join('');
 }
 
+const blocksContainer=document.getElementById('blocksContainer');
+blocksContainer.addEventListener('mouseover',function(e){
+  const row=e.target.closest('.budget-pub-row[data-budget-tooltip-key]');
+  if(!row||!blocksContainer.contains(row)) return;
+  if(e.relatedTarget&&row.contains(e.relatedTarget)) return;
+  const tooltip=document.getElementById('budgetHoverTooltip');
+  // Una vez abierto, el cuadro queda bloqueado en su fila original. Al bajar
+  // hacia el tooltip, las publicaciones intermedias no pueden moverlo.
+  if(tooltip&&tooltip.classList.contains('visible')&&budgetTooltipAnchorRow&&budgetTooltipAnchorRow!==row){
+    budgetTooltipPendingRow=row;
+    return;
+  }
+  showBudgetTooltip(row);
+});
+blocksContainer.addEventListener('mouseout',function(e){
+  const row=e.target.closest('.budget-pub-row[data-budget-tooltip-key]');
+  if(!row||row!==budgetTooltipAnchorRow) return;
+  const tooltip=document.getElementById('budgetHoverTooltip');
+  if(e.relatedTarget&&(row.contains(e.relatedTarget)||(tooltip&&tooltip.contains(e.relatedTarget)))) return;
+  // Margen amplio para llegar al cuadro; este ya toca visualmente la fila y
+  // permanece inmovil aunque el puntero atraviese otras publicaciones.
+  scheduleBudgetTooltipHide();
+});
+const budgetHoverTooltip=document.getElementById('budgetHoverTooltip');
+function closeMoreProductsWrap(wrap){
+  if(!wrap) return;
+  wrap.classList.remove('open');
+  wrap.dataset.pinned='false';
+  const btn=wrap.querySelector('.budget-tooltip-more-products');
+  if(btn) btn.setAttribute('aria-expanded','false');
+}
+function closeAllMoreProducts(except=null){
+  budgetHoverTooltip.querySelectorAll('.budget-tooltip-more-wrap.open').forEach(wrap=>{
+    if(wrap!==except) closeMoreProductsWrap(wrap);
+  });
+}
+function positionMoreProductsPopover(wrap){
+  if(!wrap||!wrap.classList.contains('open')) return;
+  const btn=wrap.querySelector('.budget-tooltip-more-products');
+  const popover=wrap.querySelector('.budget-tooltip-more-popover');
+  if(!btn||!popover) return;
+  const margin=12;
+  const gap=7;
+  const btnRect=btn.getBoundingClientRect();
+  const popRect=popover.getBoundingClientRect();
+  let left=btnRect.left;
+  let top=btnRect.bottom+gap;
+  if(left+popRect.width>window.innerWidth-margin) left=window.innerWidth-popRect.width-margin;
+  if(left<margin) left=margin;
+  if(top+popRect.height>window.innerHeight-margin) top=btnRect.top-popRect.height-gap;
+  if(top<margin) top=margin;
+  popover.style.left=left+'px';
+  popover.style.top=top+'px';
+}
+function openMoreProductsWrap(wrap,pinned=false){
+  if(!wrap) return;
+  closeAllMoreProducts(wrap);
+  wrap.classList.add('open');
+  wrap.dataset.pinned=pinned?'true':'false';
+  const btn=wrap.querySelector('.budget-tooltip-more-products');
+  if(btn) btn.setAttribute('aria-expanded','true');
+  requestAnimationFrame(()=>positionMoreProductsPopover(wrap));
+}
+budgetHoverTooltip.addEventListener('mouseenter',enterBudgetTooltip);
+budgetHoverTooltip.addEventListener('mouseleave',scheduleBudgetTooltipHide);
+// Al pasar por "Más productos" se abre el detalle. Un clic lo deja fijado.
+budgetHoverTooltip.addEventListener('mouseover',function(e){
+  const btn=e.target.closest('.budget-tooltip-more-products');
+  if(!btn) return;
+  const wrap=btn.closest('.budget-tooltip-more-wrap');
+  if(e.relatedTarget&&wrap.contains(e.relatedTarget)) return;
+  cancelBudgetTooltipHide();
+  openMoreProductsWrap(wrap,wrap.dataset.pinned==='true');
+});
+budgetHoverTooltip.addEventListener('mouseout',function(e){
+  const wrap=e.target.closest('.budget-tooltip-more-wrap');
+  if(!wrap) return;
+  if(e.relatedTarget&&wrap.contains(e.relatedTarget)) return;
+  if(wrap.dataset.pinned!=='true') closeMoreProductsWrap(wrap);
+});
+budgetHoverTooltip.addEventListener('focusin',function(e){
+  const btn=e.target.closest('.budget-tooltip-more-products');
+  if(btn) openMoreProductsWrap(btn.closest('.budget-tooltip-more-wrap'),false);
+});
+budgetHoverTooltip.addEventListener('focusout',function(e){
+  const wrap=e.target.closest('.budget-tooltip-more-wrap');
+  if(!wrap||wrap.dataset.pinned==='true') return;
+  if(e.relatedTarget&&wrap.contains(e.relatedTarget)) return;
+  closeMoreProductsWrap(wrap);
+});
+budgetHoverTooltip.addEventListener('click',function(e){
+  const btn=e.target.closest('.budget-tooltip-more-products');
+  if(!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  cancelBudgetTooltipHide();
+  const wrap=btn.closest('.budget-tooltip-more-wrap');
+  if(wrap.dataset.pinned==='true') closeMoreProductsWrap(wrap);
+  else openMoreProductsWrap(wrap,true);
+});
+budgetHoverTooltip.addEventListener('scroll',function(){
+  const openWrap=budgetHoverTooltip.querySelector('.budget-tooltip-more-wrap.open');
+  if(openWrap) positionMoreProductsPopover(openWrap);
+});
+document.addEventListener('click',function(e){
+  if(e.target.closest('.budget-tooltip-more-wrap')) return;
+  closeAllMoreProducts();
+});
+window.addEventListener('scroll',hideBudgetTooltip,true);
+window.addEventListener('resize',()=>{
+  if(budgetTooltipAnchorRow) positionBudgetTooltip(budgetTooltipAnchorRow);
+  const openWrap=budgetHoverTooltip.querySelector('.budget-tooltip-more-wrap.open');
+  if(openWrap) positionMoreProductsPopover(openWrap);
+});
+window.addEventListener('blur',hideBudgetTooltip);
+
 document.getElementById('blocksContainer').addEventListener('click',function(e){
+  const viewBtn=e.target.closest('.channel-view-btn');
+  if(viewBtn){
+    setCanalView(viewBtn.dataset.canal,viewBtn.dataset.canalView);
+    return;
+  }
+  const budgetProductRow=e.target.closest('.budget-product-row');
+  if(budgetProductRow){
+    toggleBudgetProduct(budgetProductRow.dataset.budgetCanal,budgetProductRow.dataset.budgetProduct);
+    return;
+  }
+  const budgetRow=e.target.closest('.budget-range-row');
+  if(budgetRow){
+    toggleBudgetRange(budgetRow.dataset.budgetCanal,budgetRow.dataset.budgetProduct,budgetRow.dataset.budgetRange);
+    return;
+  }
   const t=e.target.closest('.desglose-toggle');
   if(!t) return;
   toggleProductoDesglose(t.dataset.canal,t.dataset.producto);
