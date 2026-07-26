@@ -104,6 +104,19 @@
   .alert-shared{color:#9333ea !important;font-weight:800;}
   .alert-shared-icon{font-size:11px;filter:grayscale(0);}
   .alert-shared-badge{color:#9333ea;font-weight:900;font-size:15px;margin-right:2px;}
+  .j-package-badge{display:inline-block;margin-left:6px;padding:1px 6px;border:1px solid #86efac;background:#f0fdf4;color:#15803d;border-radius:10px;font-size:10.5px;font-weight:600;line-height:1.4;cursor:help;white-space:nowrap;vertical-align:middle;}
+  .j-package-ambiguous-badge{display:inline-block;margin-left:6px;padding:1px 6px;border:1px solid #fcd34d;background:#fffbeb;color:#a16207;border-radius:10px;font-size:10.5px;font-weight:600;line-height:1.4;cursor:help;white-space:nowrap;vertical-align:middle;}
+  .branded-pub-header-inner{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .branded-pub-header-text{min-width:0;flex:1;}
+  .j-mode-toggle{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;padding:4px 8px;border:1px solid rgba(255,255,255,.38);border-radius:14px;background:rgba(255,255,255,.08);color:#dbeafe;font-family:inherit;font-size:10.5px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;transition:.15s;}
+  .j-mode-toggle:hover{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.58);}
+  .j-mode-toggle-track{position:relative;display:inline-block;width:25px;height:14px;border-radius:10px;background:#64748b;transition:.15s;}
+  .j-mode-toggle-knob{position:absolute;top:2px;left:2px;width:10px;height:10px;border-radius:50%;background:#fff;transition:.15s;}
+  .j-mode-toggle.active .j-mode-toggle-track{background:#22c55e;}
+  .j-mode-toggle.active .j-mode-toggle-knob{transform:translateX(11px);}
+  .j-mode-toggle-state{min-width:30px;text-align:left;color:#e2e8f0;}
+  .j-mode-toggle.active .j-mode-toggle-state{color:#bbf7d0;}
+  @media print{.j-mode-toggle{display:none !important;}}
 
   /* ── Bloque Anunciantes por Sectores ── */
   .sector-block{margin-top:24px;}
@@ -265,6 +278,19 @@ let selectedComercial = '';
 let ALL_COMERCIALES = [];
 let selectedSector = '';
 let selectedProductTab = 'branded';
+// Estado independiente por publicación: por defecto se muestra la versión
+// SIN los complementos internacionales J. Cada publicación puede activarlos por separado.
+const J_MODE_BY_PUBLICATION = new Map();
+function jModePublicationKey(pub){ return normalize(pub); }
+function isJPublicationModeEnabled(pub){
+  const key=jModePublicationKey(pub);
+  return J_MODE_BY_PUBLICATION.has(key)?J_MODE_BY_PUBLICATION.get(key):false;
+}
+function toggleJPublicationMode(pub){
+  const key=jModePublicationKey(pub);
+  J_MODE_BY_PUBLICATION.set(key,!isJPublicationModeEnabled(pub));
+  renderBrandedContent();
+}
 
 const CURATED_PRODUCTS_NORM = ['Curated','Curated Curated','Curated Portada Digital','Curated Vídeo','Editorial Native Portada Digital'].map(normalize);
 const PRODUCT_TABS = [
@@ -276,6 +302,139 @@ const PRODUCT_TABS = [
 ];
 function getActiveProductTab(){
   return PRODUCT_TABS.find(t=>t.id===selectedProductTab)||PRODUCT_TABS[0];
+}
+
+// ---- Paquetes internacionales J: producto principal + complementos ----
+const J_COMPLEMENT_PRODUCTS=['Article Translated','Content Ignition'];
+function isInternationalDirectOrder(it){
+  const n=normalize(it&&it.claseOrden);
+  return n==='j - pago internacional directo'||n==='j-pago internacional directo'||(n.startsWith('j')&&n.includes('pago internacional directo'));
+}
+function isJComplementProduct(producto){
+  const n=normalize(producto);
+  return J_COMPLEMENT_PRODUCTS.some(p=>n===normalize(p));
+}
+function effectivePublicationForJ(it){
+  const pub=(it&&it.publicacion)||'';
+  const s=slugPub(pub);
+  if(s.includes('elle')&&!s.includes('elledecor')){
+    const detalle=normalize((it&&it.detalle)||'');
+    if(detalle.includes('gourmet')) return 'www.elle.com/es/gourmet';
+    if(detalle.includes('viajes')||detalle.includes('travel')) return 'www.elle.com/es/travel';
+  }
+  return pub;
+}
+function jPackageMatchKey(it){
+  return [
+    it&&it.anio, it&&it.mes, normalize(it&&it.anunciante), normalize(it&&it.marca),
+    normalize(effectivePublicationForJ(it)), normalize(it&&it.comercial)
+  ].join('|||');
+}
+function jComplementRepairKey(it){
+  return [
+    jPackageMatchKey(it), normalize(it&&it.producto), normalize(it&&it.familia),
+    normalize(it&&it.canal), normalize(it&&it.team)
+  ].join('|||');
+}
+function applyJComplementRepairs(sourceItems){
+  const groups=new Map();
+  sourceItems.filter(it=>isInternationalDirectOrder(it)&&isJComplementProduct(it.producto)).forEach((it,idx)=>{
+    const key=jComplementRepairKey(it);
+    if(!groups.has(key)) groups.set(key,[]);
+    groups.get(key).push({...it,_sourceOrder:idx});
+  });
+  const cleaned=[];
+  groups.forEach(groupItems=>{
+    const positives=groupItems.filter(it=>it.importe>0).map(it=>({...it,_used:false}));
+    const negatives=groupItems.filter(it=>it.importe<0).map(it=>({...it,_used:false}));
+    const zeros=groupItems.filter(it=>it.importe===0);
+    negatives.forEach(neg=>{
+      const target=Math.round(Math.abs(neg.importe)*100);
+      const exact=positives.find(pos=>!pos._used&&Math.round(pos.importe*100)===target);
+      if(exact){exact._used=true;neg._used=true;}
+    });
+    negatives.forEach(neg=>{
+      if(neg._used) return;
+      const target=Math.round(Math.abs(neg.importe)*100);
+      const partial=positives
+        .filter(pos=>!pos._used&&Math.round(pos.importe*100)>target)
+        .sort((a,b)=>b.importe-a.importe||a._sourceOrder-b._sourceOrder)[0];
+      if(partial){
+        partial.importe=Math.round((partial.importe-Math.abs(neg.importe))*100)/100;
+        neg._used=true;
+      }
+    });
+    positives.filter(pos=>!pos._used).forEach(pos=>cleaned.push(pos));
+    // Los reparos negativos huérfanos no se añaden al paquete: no podemos atribuirlos con seguridad.
+    zeros.forEach(z=>cleaned.push(z));
+  });
+  return cleaned.map(({_sourceOrder,_used,...it})=>it);
+}
+function applyJPackagesToMainItems(mainItems,jComplementItems){
+  const result=mainItems.map(it=>({...it}));
+  const mainsByKey=new Map();
+  result.forEach(it=>{
+    if(it.importe<=0||!isInternationalDirectOrder(it)) return;
+    const key=jPackageMatchKey(it);
+    if(!mainsByKey.has(key)) mainsByKey.set(key,[]);
+    mainsByKey.get(key).push(it);
+  });
+  const cleanedComplements=applyJComplementRepairs(jComplementItems||[]).filter(it=>it.importe>0);
+  const complementsByKey=new Map();
+  cleanedComplements.forEach(it=>{
+    const key=jPackageMatchKey(it);
+    if(!complementsByKey.has(key)) complementsByKey.set(key,[]);
+    complementsByKey.get(key).push(it);
+  });
+  complementsByKey.forEach((complements,key)=>{
+    const mains=mainsByKey.get(key)||[];
+    const byProduct=new Map();
+    complements.forEach(it=>{
+      const label=it.producto||'(sin producto)';
+      byProduct.set(label,(byProduct.get(label)||0)+it.importe);
+    });
+    const componentRows=Array.from(byProduct.entries()).map(([producto,importe])=>({producto,importe:Math.round(importe*100)/100}));
+    if(mains.length===1){
+      const main=mains[0];
+      const complementTotal=componentRows.reduce((sum,c)=>sum+c.importe,0);
+      main.jPackageBaseImporte=main.importe;
+      main.jPackageComponents=componentRows;
+      main.jPackageApplied=true;
+      main.importe=Math.round((main.importe+complementTotal)*100)/100;
+    }else if(mains.length>1){
+      mains.forEach(main=>{
+        main.jPackageAmbiguous=true;
+        main.jPackageAmbiguousCount=mains.length;
+        main.jPackageComponents=componentRows;
+      });
+    }
+  });
+  return result;
+}
+function applyJPackagesUsingPublicationModes(mainItems,jComplementItems){
+  const enabledComplements=(jComplementItems||[]).filter(it=>
+    isJPublicationModeEnabled(effectivePublicationForJ(it))
+  );
+  return applyJPackagesToMainItems(mainItems,enabledComplements);
+}
+function escapeHtmlAttr(value){
+  return String(value??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function jPackageTooltip(it){
+  if(!it||!it.jPackageComponents) return '';
+  const components=it.jPackageComponents.map(c=>`${c.producto}: ${formatEUR(c.importe)}`);
+  if(it.jPackageApplied){
+    return `${it.producto||'Producto principal'}: ${formatEUR(it.jPackageBaseImporte)} + ${components.join(' + ')} = Total: ${formatEUR(it.importe)}`;
+  }
+  return `Complementos encontrados (${components.join(' + ')}), pero no asignados porque hay ${it.jPackageAmbiguousCount||'varias'} activaciones principales compatibles.`;
+}
+function toBusinessItem(d){
+  return {
+    anunciante:d.anunciante||'(sin anunciante)', marca:d.marca||'', sector:d.sector||'',
+    publicacion:d.publicacion||'(sin publicación)', detalle:d.detalle||'', comercial:d.comercial||'',
+    team:d.team||'', producto:d.producto||'', familia:d.familia||'', canal:d.canal||'',
+    claseOrden:d.claseOrden||'', anio:d.anio, mes:d.mes, importe:d.importe
+  };
 }
 
 // ---- Presupuestos medios por publicación (solo Branded Content y Branded Content vídeo) ----
@@ -643,8 +802,12 @@ function renderDigitalSummary(lastYear,monthsFilter,zonaSectorFilter){
   const summaryData=PRODUCT_TABS.map(g=>{
     const curRows=baseDigital.filter(d=>d.anio===lastYear&&g.match(d.producto)&&(!monthsFilter||(d.mes!==null&&monthsFilter.has(d.mes))));
     const prevRows=baseDigital.filter(d=>d.anio===(lastYear-1)&&g.match(d.producto)&&(!monthsFilter||(d.mes!==null&&monthsFilter.has(d.mes))));
-    const curVal=curRows.reduce((s,d)=>s+d.importe,0);
-    const prevVal=prevRows.reduce((s,d)=>s+d.importe,0);
+    const curComplements=baseDigital.filter(d=>d.anio===lastYear&&isInternationalDirectOrder(d)&&isJComplementProduct(d.producto)&&(!monthsFilter||(d.mes!==null&&monthsFilter.has(d.mes)))).map(toBusinessItem);
+    const prevComplements=baseDigital.filter(d=>d.anio===(lastYear-1)&&isInternationalDirectOrder(d)&&isJComplementProduct(d.producto)&&(!monthsFilter||(d.mes!==null&&monthsFilter.has(d.mes)))).map(toBusinessItem);
+    const curAdjusted=applyJPackagesUsingPublicationModes(applyExactAndPartialRepairs(curRows.map(toBusinessItem)),curComplements);
+    const prevAdjusted=applyJPackagesUsingPublicationModes(applyExactAndPartialRepairs(prevRows.map(toBusinessItem)),prevComplements);
+    const curVal=curAdjusted.reduce((s,d)=>s+d.importe,0);
+    const prevVal=prevAdjusted.reduce((s,d)=>s+d.importe,0);
     const delta=curVal-prevVal;
     const pct=calcPct(curVal,prevVal);
     return {
@@ -720,36 +883,80 @@ function renderDigitalSummary(lastYear,monthsFilter,zonaSectorFilter){
   document.getElementById('digitalSummaryContainer').innerHTML=summaryHtml;
 }
 
-// ---- BLOQUE: BC REALES POR PUBLICACIÓN (reparos + presupuesto + media) ----
-// Un "reparo" es una línea negativa que cancela una línea positiva del mismo
-// anunciante+marca+publicación SOLO si el importe es exactamente igual (en valor
-// absoluto). Las negativas sin una positiva de importe exacto no cancelan nada
-// (quedan "sueltas" y no restan). Cada positiva que sobrevive cuenta como 1 BC real.
-function computeRealPubStats(pubItems,activeProduct,pub){
-  // Agrupamos por anunciante+marca para cancelar reparos
+// ---- BLOQUE: BC REALES POR PUBLICACIÓN (reparos + presupuesto + mediana) ----
+// Los reparos se aplican dentro de la misma operación: anunciante + marca +
+// publicación + comercial + producto/familia/canal/equipo. Primero se eliminan
+// parejas exactas y después se aplican reparos parciales sobre una positiva mayor.
+// Ejemplo: 10.000 € y -5.000 € se convierten en una única línea de 5.000 €.
+// Las negativas sin una positiva compatible se conservan en el listado visible,
+// pero no cuentan como BC real.
+function repairBusinessKey(it){
+  return [
+    normalize(it.anunciante), normalize(it.marca), normalize(it.publicacion),
+    normalize(it.comercial), normalize(it.producto), normalize(it.familia),
+    normalize(it.canal), normalize(it.team)
+  ].join('|||');
+}
+function applyExactAndPartialRepairs(sourceItems){
   const groups=new Map();
-  pubItems.forEach(it=>{
-    const key=normalize(it.anunciante)+'|||'+normalize(it.marca);
-    if(!groups.has(key)) groups.set(key,{pos:[],neg:[]});
-    if(it.importe>0) groups.get(key).pos.push(it);
-    else if(it.importe<0) groups.get(key).neg.push(it);
+  sourceItems.forEach((it,idx)=>{
+    const key=repairBusinessKey(it);
+    if(!groups.has(key)) groups.set(key,[]);
+    groups.get(key).push({...it,_sourceOrder:idx});
   });
-  const realValues=[];
-  groups.forEach(g=>{
-    const posItems=g.pos.slice();
-    g.neg.forEach(nIt=>{
-      const target=Math.abs(nIt.importe);
-      const negComercial=normalize(nIt.comercial||'');
-      // Prioriza cancelar contra una positiva del MISMO comercial (evita que
-      // el reparo de una persona anule por error la línea de otra cuando
-      // varias positivas comparten el mismo importe). Si no hay ninguna del
-      // mismo comercial, cae al comportamiento anterior (cualquier importe igual).
-      let exactIdx=posItems.findIndex(p=>Math.round(p.importe*100)===Math.round(target*100)&&normalize(p.comercial||'')===negComercial);
-      if(exactIdx<0){
-        exactIdx=posItems.findIndex(p=>Math.round(p.importe*100)===Math.round(target*100));
-      }
-      if(exactIdx>=0) posItems.splice(exactIdx,1);
+
+  const cleaned=[];
+  groups.forEach(groupItems=>{
+    const positives=groupItems.filter(it=>it.importe>0).map(it=>({...it,_used:false}));
+    const negatives=groupItems.filter(it=>it.importe<0).map(it=>({...it,_used:false}));
+    const zeros=groupItems.filter(it=>it.importe===0);
+
+    // 1) Reparos exactos: una negativa elimina una única positiva del mismo importe.
+    negatives.forEach(neg=>{
+      const target=Math.round(Math.abs(neg.importe)*100);
+      const exact=positives.find(pos=>!pos._used&&Math.round(pos.importe*100)===target);
+      if(exact){ exact._used=true; neg._used=true; }
     });
+
+    // 2) Reparos parciales: la negativa reduce una positiva mayor y desaparece.
+    // Si hay varias positivas compatibles, se aplica sobre la de MAYOR importe.
+    // Así el reparo se descuenta de la operación principal y no de una línea menor.
+    negatives.forEach(neg=>{
+      if(neg._used) return;
+      const target=Math.round(Math.abs(neg.importe)*100);
+      const candidates=positives
+        .filter(pos=>!pos._used&&Math.round(pos.importe*100)>target)
+        .sort((a,b)=>b.importe-a.importe||a._sourceOrder-b._sourceOrder);
+      const partial=candidates[0];
+      if(partial){
+        partial.importe=Math.round((partial.importe-Math.abs(neg.importe))*100)/100;
+        neg._used=true;
+      }
+    });
+
+    positives.filter(pos=>!pos._used).forEach(pos=>cleaned.push(pos));
+    negatives.filter(neg=>!neg._used).forEach(neg=>cleaned.push(neg));
+    zeros.forEach(z=>cleaned.push(z));
+  });
+
+  return cleaned
+    .sort((a,b)=>(a._sourceOrder??0)-(b._sourceOrder??0))
+    .map(({_sourceOrder,_used,...it})=>it);
+}
+function computeRealPubStats(pubItems,activeProduct,pub,jComplementItems){
+  const repairedItems=applyExactAndPartialRepairs(pubItems);
+  const packagedItems=isJPublicationModeEnabled(pub)
+    ?applyJPackagesToMainItems(repairedItems,jComplementItems)
+    :repairedItems;
+  const groups=new Map();
+  packagedItems.filter(it=>it.importe>0).forEach(it=>{
+    const key=normalize(it.anunciante)+'|||'+normalize(it.marca);
+    if(!groups.has(key)) groups.set(key,[]);
+    groups.get(key).push(it);
+  });
+
+  const realValues=[];
+  groups.forEach(posItems=>{
     // Emparejar ventas conjuntas: mismo importe + comerciales diferentes + Madrid y Barcelona
     const byImporte=new Map();
     posItems.forEach(it=>{
@@ -761,28 +968,30 @@ function computeRealPubStats(pubItems,activeProduct,pub){
       const madridItems=subGroup.filter(it=>(it.team||'').toLowerCase()==='madrid');
       const barcelonaItems=subGroup.filter(it=>(it.team||'').toLowerCase()==='barcelona');
       const otherItems=subGroup.filter(it=>{const t=(it.team||'').toLowerCase();return t!=='madrid'&&t!=='barcelona';});
-      const pairs=Math.min(madridItems.length,barcelonaItems.length);
-      let pairedM=0,pairedB=0;
-      for(let i=0;i<pairs;i++){
-        if(normalize(madridItems[i].comercial||'')!==normalize(barcelonaItems[i].comercial||'')){
-          realValues.push(madridItems[i].importe+barcelonaItems[i].importe);
-          pairedM++;pairedB++;
-        } else {
-          realValues.push(madridItems[i].importe);
-          realValues.push(barcelonaItems[i].importe);
+      const usedB=new Set();
+      madridItems.forEach(mad=>{
+        const bIdx=barcelonaItems.findIndex((b,idx)=>!usedB.has(idx)&&normalize(mad.comercial||'')!==normalize(b.comercial||''));
+        if(bIdx>=0){
+          realValues.push(mad.importe+barcelonaItems[bIdx].importe);
+          usedB.add(bIdx);
+        }else{
+          realValues.push(mad.importe);
         }
-      }
-      for(let i=pairedM;i<madridItems.length;i++) realValues.push(madridItems[i].importe);
-      for(let i=pairedB;i<barcelonaItems.length;i++) realValues.push(barcelonaItems[i].importe);
+      });
+      barcelonaItems.forEach((it,idx)=>{ if(!usedB.has(idx)) realValues.push(it.importe); });
       otherItems.forEach(it=>realValues.push(it.importe));
     });
   });
   const realCount=realValues.length;
-  const media=realCount>0?realValues.reduce((a,b)=>a+b,0)/realCount:null;
-  const belowMedia=media!==null?realValues.filter(v=>v<media).length:0;
+  const sortedValues=realValues.slice().sort((a,b)=>a-b);
+  const middle=Math.floor(sortedValues.length/2);
+  const mediana=realCount===0
+    ?null
+    :(realCount%2===1?sortedValues[middle]:(sortedValues[middle-1]+sortedValues[middle])/2);
+  const belowMediana=mediana!==null?realValues.filter(v=>v<mediana).length:0;
   const presupuesto=getAvgBudget(activeProduct.id,pub);
   const belowPresupuesto=presupuesto!==null?realValues.filter(v=>v<presupuesto).length:null;
-  return {realCount,media,belowMedia,presupuesto,belowPresupuesto,realValues};
+  return {realCount,mediana,belowMediana,presupuesto,belowPresupuesto,realValues};
 }
 
 // Estado del bloque "BC Reales por Publicación", para poder desplegar el
@@ -799,7 +1008,7 @@ function computeSectorBreakdownForPub(pub){
     bySector.get(sec).push(it);
   });
   const sectorNames=Array.from(bySector.keys()).sort((a,b)=>a.localeCompare(b,'es'));
-  return sectorNames.map(sec=>({sector:sec,...computeRealPubStats(bySector.get(sec),pubSummaryState.activeProduct,pub)}));
+  return sectorNames.map(sec=>({sector:sec,...computeRealPubStats(bySector.get(sec),pubSummaryState.activeProduct,pub,pubSummaryState.jComplementItems)}));
 }
 
 function togglePubSector(idx){
@@ -817,7 +1026,7 @@ function renderPubSummaryTable(){
   const totalReal=rows.reduce((s,r)=>s+r.realCount,0);
   const presupuestoRows=rows.filter(r=>r.belowPresupuesto!==null);
   const totalBelowPresupuesto=presupuestoRows.length>0?presupuestoRows.reduce((s,r)=>s+r.belowPresupuesto,0):null;
-  const totalBelowMedia=rows.reduce((s,r)=>s+r.belowMedia,0);
+  const totalBelowMediana=rows.reduce((s,r)=>s+r.belowMediana,0);
   // Columna personalizada: contar BCs por debajo del umbral
   const totalBelowCustom=rows.reduce((s,r)=>{
     const count=r.realValues?r.realValues.filter(v=>v<customBelowThreshold).length:0;
@@ -838,7 +1047,7 @@ function renderPubSummaryTable(){
         <th style="text-align:left;">Publicaci\u00f3n</th>
         <th>BC Reales</th>
         <th>Por debajo del presupuesto</th>
-        <th>Por debajo de la media</th>
+        <th>Por debajo de la mediana</th>
         <th>Por debajo de ${formatEUR(customBelowThreshold)}</th>
       </tr></thead>
       <tbody>
@@ -846,7 +1055,7 @@ function renderPubSummaryTable(){
           <td style="text-align:left;font-weight:800;">Total Hearst</td>
           <td style="font-weight:800;">${totalReal}</td>
           <td style="font-weight:800;">${totalBelowPresupuesto===null?'\u2014':totalBelowPresupuesto}</td>
-          <td style="font-weight:800;">${totalBelowMedia}</td>
+          <td style="font-weight:800;">${totalBelowMediana}</td>
           <td style="font-weight:800;">${totalBelowCustom}</td>
         </tr>`;
 
@@ -859,7 +1068,7 @@ function renderPubSummaryTable(){
       <td style="text-align:left;"><span class="pub-toggle${isActive?' open':''}">\u25b6</span>${r.pub}</td>
       <td>${r.realCount}</td>
       <td>${r.belowPresupuesto===null?'\u2014':r.belowPresupuesto}</td>
-      <td>${r.belowMedia}</td>
+      <td>${r.belowMediana}</td>
       <td>${belowCustom}</td>
     </tr>`;
     if(isActive){
@@ -873,7 +1082,7 @@ function renderPubSummaryTable(){
             <td>\u{1F3F7}\uFE0F ${sr.sector}</td>
             <td>${sr.realCount}</td>
             <td>${sr.belowPresupuesto===null?'\u2014':sr.belowPresupuesto}</td>
-            <td>${sr.belowMedia}</td>
+            <td>${sr.belowMediana}</td>
             <td>${srBelowCustom}</td>
           </tr>`;
         });
@@ -882,12 +1091,12 @@ function renderPubSummaryTable(){
   });
 
   html+=`</tbody></table>
-    <div style="margin-top:14px;font-size:11px;color:#94a3b8;">BC Reales = l\u00edneas positivas tras aplicar reparos (una l\u00ednea negativa solo cancela una positiva del mismo anunciante+marca+publicaci\u00f3n con el importe EXACTAMENTE igual; las negativas sueltas sin una positiva exacta que cancelar no restan). Media = promedio de los importes reales de esa publicaci\u00f3n en el periodo filtrado. Pincha en una publicaci\u00f3n para ver su desglose por sector.</div>`;
+    <div style="margin-top:14px;font-size:11px;color:#94a3b8;">BC Reales = l\u00edneas positivas tras aplicar reparos exactos y parciales (una negativa elimina primero una positiva exacta; si no existe y hay varias positivas mayores compatibles, se descuenta de la de mayor importe; las negativas sin positiva compatible no restan). Mediana = valor central de los importes reales de esa publicaci\u00f3n en el periodo filtrado (si hay un n\u00famero par de activaciones, se usa el promedio de los dos valores centrales). Pincha en una publicaci\u00f3n para ver su desglose por sector.</div>`;
 
   container.innerHTML=html;
 }
 
-function renderPubSummary(items,activeProduct,lastYear){
+function renderPubSummary(items,activeProduct,lastYear,jComplementItems){
   const container=document.getElementById('pubSummaryContainer');
   if(!container) return;
   document.body.classList.remove('pub-focus-mode');
@@ -922,9 +1131,9 @@ function renderPubSummary(items,activeProduct,lastYear){
   const pubNames=elleIdxS!==-1
     ?[...otherKeys.slice(0,elleIdxS+1),ELLE_GOURMET,ELLE_TRAVEL,...otherKeys.slice(elleIdxS+1)]
     :otherKeys;
-  const rows=pubNames.map(pub=>({pub,...computeRealPubStats(byPub.get(pub)||[],activeProduct,pub)}));
+  const rows=pubNames.map(pub=>({pub,...computeRealPubStats(byPub.get(pub)||[],activeProduct,pub,jComplementItems)}));
 
-  pubSummaryState={byPub,rows,activeProduct,lastYear,expandedIdx:null};
+  pubSummaryState={byPub,rows,activeProduct,lastYear,jComplementItems:jComplementItems||[],expandedIdx:null};
   renderPubSummaryTable();
 }
 
@@ -939,13 +1148,15 @@ function renderBrandedContent(){
   const titleEl=document.getElementById('brandedBlockTitle');
   if(titleEl) titleEl.textContent=`🎨 ${productLabel}`;
 
-  let rows=getDataForTab(activeTab).filter(d=>d.canal!=='__antivendors'&&activeProduct.match(d.producto));
+  let scopeRows=getDataForTab(activeTab).filter(d=>d.canal!=='__antivendors');
   const zonaSectorFilter=getSectorFilterForTab(activeTab);
-  if(zonaSectorFilter) rows=rows.filter(d=>zonaSectorFilter.has(normalize(d.sector)));
-  if(selectedComercial) rows=rows.filter(d=>normalize(d.comercial)===normalize(selectedComercial));
-  if(selectedSector) rows=rows.filter(d=>normalize(d.sector)===normalize(selectedSector));
-  rows=rows.filter(d=>d.anio===lastYear);
-  if(monthsFilter) rows=rows.filter(d=>d.mes!==null&&monthsFilter.has(d.mes));
+  if(zonaSectorFilter) scopeRows=scopeRows.filter(d=>zonaSectorFilter.has(normalize(d.sector)));
+  if(selectedComercial) scopeRows=scopeRows.filter(d=>normalize(d.comercial)===normalize(selectedComercial));
+  if(selectedSector) scopeRows=scopeRows.filter(d=>normalize(d.sector)===normalize(selectedSector));
+  scopeRows=scopeRows.filter(d=>d.anio===lastYear);
+  if(monthsFilter) scopeRows=scopeRows.filter(d=>d.mes!==null&&monthsFilter.has(d.mes));
+  const rows=scopeRows.filter(d=>activeProduct.match(d.producto));
+  const jComplementItems=scopeRows.filter(d=>isInternationalDirectOrder(d)&&isJComplementProduct(d.producto)).map(toBusinessItem);
 
   // If no sector selected, show all of the selected product (no filter by sector)
 
@@ -958,16 +1169,7 @@ function renderBrandedContent(){
   }
 
   // Listado simple - cada fila del Excel es una línea (incluye importes a 0€, sin fusionar duplicados)
-  const items=rows.map(d=>({
-    anunciante:d.anunciante||'(sin anunciante)',
-    marca:d.marca||'',
-    sector:d.sector||'',
-    publicacion:d.publicacion||'(sin publicación)',
-    detalle:d.detalle||'',
-    comercial:d.comercial||'',
-    team:d.team||'',
-    importe:d.importe
-  }));
+  const items=rows.map(toBusinessItem);
 
   if(items.length===0){
     container.innerHTML=`<div class="sector-empty-hint">Sin datos de ${productLabel} para el periodo seleccionado.</div>`;
@@ -977,13 +1179,14 @@ function renderBrandedContent(){
     return;
   }
 
-  const total=items.reduce((s,it)=>s+it.importe,0);
+  const totalItems=applyJPackagesUsingPublicationModes(applyExactAndPartialRepairs(items),jComplementItems);
+  const total=totalItems.reduce((s,it)=>s+it.importe,0);
   const posCount=items.filter(it=>it.importe>0).length;
   const negCount=items.filter(it=>it.importe<0).length;
   const zeroCount=items.filter(it=>it.importe===0).length;
 
   renderDigitalSummary(lastYear,monthsFilter,zonaSectorFilter);
-  renderPubSummary(items,activeProduct,lastYear);
+  renderPubSummary(items,activeProduct,lastYear,jComplementItems);
 
   let html=`<div style="margin:0 0 28px;padding:16px 20px;background:linear-gradient(90deg,#f0f9ff,#f8fafc);border:1px solid #dbeafe;border-radius:12px;">
     <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
@@ -1041,19 +1244,24 @@ function renderBrandedContent(){
 
   pubNames.forEach((pub,pubIdx)=>{
     const pubItems=byPub.get(pub).sort((a,b)=>b.importe-a.importe);
-    const pubTotal=pubItems.reduce((s,it)=>s+it.importe,0);
     const topPad=pubIdx===0?14:26;
     const avgBudget=getAvgBudget(activeProduct.id,pub);
-    // Fusionar ventas conjuntas: misma info pero un comercial Madrid y otro Barcelona
-    // Aplica a TODAS las lineas (positivas Y negativas)
+    // Primero limpiamos reparos exactos y parciales en las líneas originales.
+    // Después sumamos los complementos de los paquetes internacionales J y, por último,
+    // fusionamos las ventas conjuntas Madrid + Barcelona que sobreviven.
+    const repairedPubItems=applyExactAndPartialRepairs(pubItems);
+    const useJInternational=isJPublicationModeEnabled(pub);
+    const packagedPubItems=useJInternational
+      ?applyJPackagesToMainItems(repairedPubItems,jComplementItems)
+      :repairedPubItems;
     const displayRows=[];
     const processed=new Set();
-    for(let i=0;i<pubItems.length;i++){
+    for(let i=0;i<packagedPubItems.length;i++){
       if(processed.has(i)) continue;
       let merged=false;
-      for(let j=i+1;j<pubItems.length;j++){
+      for(let j=i+1;j<packagedPubItems.length;j++){
         if(processed.has(j)) continue;
-        const a=pubItems[i],b=pubItems[j];
+        const a=packagedPubItems[i],b=packagedPubItems[j];
         // Mismo anunciante + marca + importe exacto
         if(normalize(a.anunciante)===normalize(b.anunciante)&&
            normalize(a.marca)===normalize(b.marca)&&
@@ -1070,7 +1278,11 @@ function renderBrandedContent(){
                 marca:a.marca,
                 sector:a.sector,
                 comercial:(madItem.comercial||'')+', '+(bcnItem.comercial||''),
-                importe:a.importe+b.importe
+                producto:a.producto,
+                importe:a.importe+b.importe,
+                jPackageApplied:!!(a.jPackageApplied||b.jPackageApplied),
+                jPackageBaseImporte:(a.jPackageBaseImporte||0)+(b.jPackageBaseImporte||0),
+                jPackageComponents:[...(a.jPackageComponents||[]),...(b.jPackageComponents||[])]
               });
               processed.add(i);
               processed.add(j);
@@ -1081,50 +1293,69 @@ function renderBrandedContent(){
         }
       }
       if(!merged&&!processed.has(i)){
-        displayRows.push(pubItems[i]);
+        displayRows.push(packagedPubItems[i]);
         processed.add(i);
       }
     }
-    displayRows.sort((a,b)=>b.importe-a.importe);
-    // Conteos para la cabecera azul
-    const totalLineas=displayRows.length;
-    // Sin reparos: cancelar positiva+negativa iguales (mismo anunciante+marca+|importe|)
-    const sinReparos=(()=>{
-      const posLines=displayRows.filter(it=>it.importe>0).map(it=>({...it,_used:false}));
-      const negLines=displayRows.filter(it=>it.importe<0).map(it=>({...it,_used:false}));
-      let cancelled=0;
-      negLines.forEach(neg=>{
-        if(neg._used) return;
-        const target=Math.abs(neg.importe);
-        const negComercial=normalize(neg.comercial||'');
-        let matchIdx=posLines.findIndex(p=>!p._used&&Math.round(p.importe*100)===Math.round(target*100)&&normalize(p.anunciante)===normalize(neg.anunciante)&&normalize(p.marca)===normalize(neg.marca)&&normalize(p.comercial||'')===negComercial);
-        if(matchIdx<0){
-          matchIdx=posLines.findIndex(p=>!p._used&&Math.round(p.importe*100)===Math.round(target*100)&&normalize(p.anunciante)===normalize(neg.anunciante)&&normalize(p.marca)===normalize(neg.marca));
-        }
-        if(matchIdx>=0){posLines[matchIdx]._used=true;neg._used=true;cancelled++;}
-      });
-      return totalLineas-cancelled*2;
-    })();
-    const belowCount=avgBudget!==null?displayRows.filter(it=>it.importe>0&&it.importe<avgBudget).length:0;
+    // Orden del listado: ingreso por su parte entera (los decimales no alteran
+    // la posición), después anunciante y, por último, marca.
+    displayRows.sort((a,b)=>
+      (Math.trunc(Number(b.importe)||0)-Math.trunc(Number(a.importe)||0)) ||
+      String(a.anunciante||'').localeCompare(String(b.anunciante||''),'es',{sensitivity:'base'}) ||
+      String(a.marca||'').localeCompare(String(b.marca||''),'es',{sensitivity:'base'})
+    );
+
+    // El listado ya llega limpio de reparos exactos y parciales.
+    const cleanDisplayRows=displayRows;
+
+    // Conteos para la cabecera azul basados exactamente en las filas visibles.
+    // Las parejas de reparo ya no aparecen, así que mostramos únicamente el
+    // número total de líneas del listado limpio y cuántas tienen ingreso distinto de 0 €.
+    const totalLineas=cleanDisplayRows.length;
+    const sinZeroLineas=cleanDisplayRows.filter(it=>it.importe!==0).length;
+    const pubTotal=cleanDisplayRows.reduce((sum,it)=>sum+it.importe,0);
+    const belowCount=avgBudget!==null?cleanDisplayRows.filter(it=>it.importe>0&&it.importe<avgBudget).length:0;
+    const jModeState=useJInternational?'Con J':'Sin J';
+    const jModeTitle=useJInternational
+      ?'Mostrar esta publicación sin sumar Article Translated ni Content Ignition'
+      :'Mostrar esta publicación sumando los complementos internacionales J';
     html+=`<tr class="branded-pub-spacer" style="height:${topPad}px;"><td colspan="5" style="border:none;padding:0;"></td></tr>
-    <tr class="branded-pub-header"><td colspan="5" style="background:linear-gradient(90deg,#0d2340,#16345f);border-radius:8px;font-weight:700;color:#fff;padding:10px 14px;letter-spacing:.02em;">${pub} <span style="font-weight:600;color:#8fd3f4;font-size:12px;">\u00b7 ${totalLineas} l\u00ednea${totalLineas===1?'':'s'} \u00b7 ${sinReparos} sin reparos \u00b7 ${formatEUR(pubTotal)}</span>${avgBudget!==null?` <span style="font-weight:600;color:#c9d6e8;font-size:11.5px;">\u00b7 Presupuesto medio: ${formatEUR(avgBudget)} (${belowCount} por debajo)</span>`:''}</td></tr>`;
-    displayRows.forEach(it=>{
+    <tr class="branded-pub-header"><td colspan="5" style="background:linear-gradient(90deg,#0d2340,#16345f);border-radius:8px;font-weight:700;color:#fff;padding:10px 14px;letter-spacing:.02em;">
+      <div class="branded-pub-header-inner">
+        <div class="branded-pub-header-text">${pub} <span style="font-weight:600;color:#8fd3f4;font-size:12px;">\u00b7 ${totalLineas} l\u00ednea${totalLineas===1?'':'s'} \u00b7 ${sinZeroLineas} l\u00ednea${sinZeroLineas===1?'':'s'} sin contar las de 0\u00a0\u20ac \u00b7 ${formatEUR(pubTotal)}</span>${avgBudget!==null?` <span style="font-weight:600;color:#c9d6e8;font-size:11.5px;">\u00b7 Presupuesto medio: ${formatEUR(avgBudget)} (${belowCount} por debajo)</span>`:''}</div>
+        <button type="button" class="j-mode-toggle${useJInternational?' active':''}" data-j-pub-toggle="${escapeHtmlAttr(pub)}" title="${escapeHtmlAttr(jModeTitle)}">
+          <span>Internacional</span><span class="j-mode-toggle-track"><span class="j-mode-toggle-knob"></span></span><span class="j-mode-toggle-state">${jModeState}</span>
+        </button>
+      </div>
+    </td></tr>`;
+    cleanDisplayRows.forEach(it=>{
       const belowBudget=avgBudget!==null&&it.importe>0&&it.importe<avgBudget;
       const rowBg=it.importe===0?'#fffbeb':(it.importe<0?'#fef2f2':(belowBudget?'#7a1f2b':''));
       const rowStyle=rowBg?` style="background:${rowBg};"`:'';
       const cellColor=belowBudget?'color:#fff !important;':'';
+      const packageBadge=it.jPackageApplied
+        ?`<span class="j-package-badge" title="${escapeHtmlAttr(jPackageTooltip(it))}">J + complementos</span>`
+        :(it.jPackageAmbiguous?`<span class="j-package-ambiguous-badge" title="${escapeHtmlAttr(jPackageTooltip(it))}">J sin asignar</span>`:'');
       html+=`<tr${rowStyle}>
         <td style="text-align:center;${cellColor}">${it.anunciante}</td>
         <td style="${cellColor}">${it.marca}</td>
         <td style="${cellColor}">${it.sector}</td>
         <td style="${cellColor}">${it.comercial}</td>
-        <td style="${cellColor}">${formatEUR(it.importe)}</td>
+        <td style="${cellColor}">${formatEUR(it.importe)}${packageBadge}</td>
       </tr>`;
     });
   });
 
-  html+=`</tbody></table>`;
+  html+=`</tbody></table>
+    <div style="margin-top:12px;font-size:11px;color:#94a3b8;"><span class="j-package-badge" style="margin-left:0;">J + complementos</span> = activación con clase “J - PAGO INTERNACIONAL DIRECTO” cuyo ingreso incluye Article Translated y/o Content Ignition compatibles. Los complementos no añaden líneas al conteo, pero sí forman parte del importe usado para presupuesto, mediana y totales. Usa el selector “Internacional” de cada publicación para alternar entre la versión con y sin esta suma; cada publicación conserva su propia selección. Pasa el cursor por la etiqueta para ver el desglose.</div>`;
   container.innerHTML=html;
+  container.querySelectorAll('[data-j-pub-toggle]').forEach(btn=>{
+    btn.addEventListener('click',event=>{
+      event.preventDefault();
+      event.stopPropagation();
+      toggleJPublicationMode(btn.dataset.jPubToggle||'');
+    });
+  });
 
   const pb=document.getElementById('brandedPrintBtn');
   if(pb) pb.style.display='inline-block';
@@ -1151,6 +1382,7 @@ function printBrandedContent(){
       th:first-child{text-align:left;}
       td{padding:7px 10px;border-bottom:1px solid #f1f5f9;text-align:right;}
       td:first-child{text-align:left;}
+      .j-mode-toggle{display:none !important;}
       @media print{body{padding:15px;} @page{margin:1cm;size:landscape;}}
     </style>
   </head><body>
