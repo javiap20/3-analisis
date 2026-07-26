@@ -121,9 +121,25 @@
   #pubSummaryContainer .block-card-title{margin-bottom:18px;}
   #pubSummaryContainer table.mini-canal-table{margin-bottom:16px;table-layout:fixed;}
   #pubSummaryContainer table.mini-canal-table th:first-child,
-  #pubSummaryContainer table.mini-canal-table td:first-child{width:40%;}
-  #pubSummaryContainer table.mini-canal-table th:not(:first-child),
-  #pubSummaryContainer table.mini-canal-table td:not(:first-child){width:20%;text-align:center;}
+  #pubSummaryContainer table.mini-canal-table td:first-child{width:28%;}
+  #pubSummaryContainer table.mini-canal-table th:nth-child(2),
+  #pubSummaryContainer table.mini-canal-table td:nth-child(2){width:10%;text-align:center;}
+  #pubSummaryContainer table.mini-canal-table th:nth-child(3),
+  #pubSummaryContainer table.mini-canal-table td:nth-child(3),
+  #pubSummaryContainer table.mini-canal-table th:nth-child(4),
+  #pubSummaryContainer table.mini-canal-table td:nth-child(4),
+  #pubSummaryContainer table.mini-canal-table th:nth-child(5),
+  #pubSummaryContainer table.mini-canal-table td:nth-child(5),
+  #pubSummaryContainer table.mini-canal-table th:nth-child(6),
+  #pubSummaryContainer table.mini-canal-table td:nth-child(6){width:13%;text-align:center;}
+  #pubSummaryContainer table.mini-canal-table th:nth-child(7),
+  #pubSummaryContainer table.mini-canal-table td:nth-child(7){width:10%;text-align:center;}
+  /* Agrupación visual muy sutil: las cabeceras conservan el azul original. */
+  #pubSummaryContainer table.mini-canal-table tbody td.mean-col{background:#e9f5ec;}
+  #pubSummaryContainer table.mini-canal-table tbody td.median-col{background:#f3edf9;}
+  #pubSummaryContainer table.mini-canal-table tbody tr.pub-sector-row td.mean-col{background:#dceee1;}
+  #pubSummaryContainer table.mini-canal-table tbody tr.pub-sector-row td.median-col{background:#e9def4;}
+  #pubSummaryContainer table.mini-canal-table tbody tr.pub-total-row td{background:#eef6ff !important;}
 
   /* ── Desglose por sector dentro de RRSS Reales por Publicación ── */
   .pub-toggle{display:inline-block;width:11px;font-size:10px;margin-right:8px;color:var(--accent);cursor:pointer;transition:transform .15s;user-select:none;}
@@ -766,7 +782,7 @@ function renderDigitalSummary(lastYear,monthsFilter,zonaSectorFilter){
   document.getElementById('digitalSummaryContainer').innerHTML=summaryHtml;
 }
 
-// ---- BLOQUE: RRSS REALES POR PUBLICACIÓN (reparos + media, sin presupuesto) ----
+// ---- BLOQUE: RRSS REALES POR PUBLICACIÓN (reparos + media y mediana, sin presupuesto) ----
 // Un "reparo" es una línea negativa que cancela una línea positiva del mismo
 // anunciante+marca+publicación SOLO si el importe es exactamente igual (en valor
 // absoluto). Las negativas sin una positiva de importe exacto no cancelan nada
@@ -817,8 +833,12 @@ function computeRealPubStats(pubItems,activeProduct,pub){
   });
   const realCount=realValues.length;
   const media=realCount>0?realValues.reduce((a,b)=>a+b,0)/realCount:null;
-  const belowMedia=media!==null?realValues.filter(v=>v<media).length:0;
-  return {realCount,media,belowMedia,realValues};
+  const belowMean=media!==null?realValues.filter(v=>v<media).length:0;
+  const sortedValues=realValues.slice().sort((a,b)=>a-b);
+  const mid=Math.floor(sortedValues.length/2);
+  const mediana=realCount===0?null:(realCount%2===1?sortedValues[mid]:(sortedValues[mid-1]+sortedValues[mid])/2);
+  const belowMedian=mediana!==null?realValues.filter(v=>v<mediana).length:0;
+  return {realCount,media,belowMean,mediana,belowMedian,realValues};
 }
 
 // Cuenta las "líneas reales" (positivas, tras reparos y fusión de ventas conjuntas) de
@@ -866,11 +886,15 @@ function renderPubSummaryTable(){
   const {rows,activeProduct,lastYear,expandedIdx}=pubSummaryState;
 
   const totalReal=rows.reduce((s,r)=>s+r.realCount,0);
-  const totalBelowMedia=rows.reduce((s,r)=>s+r.belowMedia,0);
-  // Presupuesto medio real del total Hearst: media ponderada de TODAS las líneas reales
-  // de todas las publicaciones (no la media de las medias).
+  // Media y mediana del total Hearst: ambas se calculan con TODAS las líneas reales
+  // de todas las publicaciones juntas (no como media/mediana de los resultados por publicación).
   const allRealValues=rows.reduce((arr,r)=>arr.concat(r.realValues||[]),[]);
-  const totalMediaReal=allRealValues.length>0?allRealValues.reduce((a,b)=>a+b,0)/allRealValues.length:null;
+  const totalMeanReal=allRealValues.length===0?null:allRealValues.reduce((a,b)=>a+b,0)/allRealValues.length;
+  const totalBelowMean=totalMeanReal===null?0:allRealValues.filter(v=>v<totalMeanReal).length;
+  const allRealValuesSorted=allRealValues.slice().sort((a,b)=>a-b);
+  const totalMid=Math.floor(allRealValuesSorted.length/2);
+  const totalMedianReal=allRealValuesSorted.length===0?null:(allRealValuesSorted.length%2===1?allRealValuesSorted[totalMid]:(allRealValuesSorted[totalMid-1]+allRealValuesSorted[totalMid])/2);
+  const totalBelowMedian=totalMedianReal===null?0:allRealValues.filter(v=>v<totalMedianReal).length;
   // Columna personalizada: contar líneas por debajo del umbral
   const totalBelowCustom=rows.reduce((s,r)=>{
     const count=r.realValues?r.realValues.filter(v=>v<customBelowThreshold).length:0;
@@ -890,16 +914,20 @@ function renderPubSummaryTable(){
       <thead><tr>
         <th style="text-align:left;">Publicaci\u00f3n</th>
         <th>RRSS Reales</th>
-        <th>Presupuesto medio real</th>
+        <th>Media real</th>
         <th>Por debajo de la media</th>
+        <th>Mediana real</th>
+        <th>Por debajo de la mediana</th>
         <th>Por debajo de ${formatEUR(customBelowThreshold)}</th>
       </tr></thead>
       <tbody>
         <tr class="pub-total-row" style="background:#eef6ff;">
           <td style="text-align:left;font-weight:800;">Total Hearst</td>
           <td style="font-weight:800;">${totalReal}</td>
-          <td style="font-weight:800;">${totalMediaReal===null?'\u2014':formatEUR(totalMediaReal)}</td>
-          <td style="font-weight:800;">${totalBelowMedia}</td>
+          <td class="mean-col" style="font-weight:800;">${totalMeanReal===null?'\u2014':formatEUR(totalMeanReal)}</td>
+          <td class="mean-col" style="font-weight:800;">${totalBelowMean}</td>
+          <td class="median-col" style="font-weight:800;">${totalMedianReal===null?'\u2014':formatEUR(totalMedianReal)}</td>
+          <td class="median-col" style="font-weight:800;">${totalBelowMedian}</td>
           <td style="font-weight:800;">${totalBelowCustom}</td>
         </tr>`;
 
@@ -911,22 +939,26 @@ function renderPubSummaryTable(){
     html+=`<tr class="pub-row${dimCls}${activeCls}" onclick="togglePubSector(${idx})">
       <td style="text-align:left;"><span class="pub-toggle${isActive?' open':''}">\u25b6</span>${r.pub}</td>
       <td>${r.realCount}</td>
-      <td>${r.media===null?'\u2014':formatEUR(r.media)}</td>
-      <td>${r.belowMedia}</td>
+      <td class="mean-col">${r.media===null?'\u2014':formatEUR(r.media)}</td>
+      <td class="mean-col">${r.belowMean}</td>
+      <td class="median-col">${r.mediana===null?'\u2014':formatEUR(r.mediana)}</td>
+      <td class="median-col">${r.belowMedian}</td>
       <td>${belowCustom}</td>
     </tr>`;
     if(isActive){
       const secRows=computeSectorBreakdownForPub(r.pub);
       if(secRows.length===0){
-        html+=`<tr class="pub-sector-row"><td colspan="5" style="font-style:italic;color:var(--muted);">Sin desglose por sector para esta publicaci\u00f3n.</td></tr>`;
+        html+=`<tr class="pub-sector-row"><td colspan="7" style="font-style:italic;color:var(--muted);">Sin desglose por sector para esta publicaci\u00f3n.</td></tr>`;
       }else{
         secRows.forEach(sr=>{
           const srBelowCustom=sr.realValues?sr.realValues.filter(v=>v<customBelowThreshold).length:0;
           html+=`<tr class="pub-sector-row">
             <td>\u{1F3F7}\uFE0F ${sr.sector}</td>
             <td>${sr.realCount}</td>
-            <td>${sr.media===null?'\u2014':formatEUR(sr.media)}</td>
-            <td>${sr.belowMedia}</td>
+            <td class="mean-col">${sr.media===null?'\u2014':formatEUR(sr.media)}</td>
+            <td class="mean-col">${sr.belowMean}</td>
+            <td class="median-col">${sr.mediana===null?'\u2014':formatEUR(sr.mediana)}</td>
+            <td class="median-col">${sr.belowMedian}</td>
             <td>${srBelowCustom}</td>
           </tr>`;
         });
@@ -935,7 +967,7 @@ function renderPubSummaryTable(){
   });
 
   html+=`</tbody></table>
-    <div style="margin-top:14px;font-size:11px;color:#94a3b8;">RRSS Reales = l\u00edneas positivas tras aplicar reparos (una l\u00ednea negativa solo cancela una positiva del mismo anunciante+marca+publicaci\u00f3n con el importe EXACTAMENTE igual; las negativas sueltas sin una positiva exacta que cancelar no restan). Presupuesto medio real = promedio real de esas l\u00edneas (no es un presupuesto fijo est\u00e1ndar, es el que sale de los datos). Por debajo de la media = l\u00edneas reales con importe inferior a ese promedio. Pincha en una publicaci\u00f3n para ver su desglose por sector.</div>`;
+    <div style="margin-top:14px;font-size:11px;color:#94a3b8;">RRSS Reales = l\u00edneas positivas tras aplicar reparos (una l\u00ednea negativa solo cancela una positiva del mismo anunciante+marca+publicaci\u00f3n con el importe EXACTAMENTE igual; las negativas sueltas sin una positiva exacta que cancelar no restan). Media real = promedio de los importes reales. Mediana real = valor central de esas l\u00edneas ordenadas por importe; si hay un n\u00famero par, se usa el promedio de los dos valores centrales. Las columnas «Por debajo» cuentan las l\u00edneas reales inferiores a cada referencia. Pincha en una publicaci\u00f3n para ver su desglose por sector.</div>`;
 
   container.innerHTML=html;
 }
