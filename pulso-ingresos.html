@@ -405,7 +405,7 @@ button,input{font:inherit}.dashboard{max-width:1500px;margin:0 auto;padding:24px
     </section>
     <section class="low-contribution-panel" aria-label="Anunciantes por debajo de un límite configurable en todo Hearst">
       <div class="low-contribution-header">
-        <div><div class="low-contribution-title">🌱 Anunciantes con menos de <span id="lowContributionLimitLabel">5.000 €</span> en Hearst</div><div class="low-contribution-context" id="lowContributionContext">Sponsorship, Social Networks y Curated</div></div>
+        <div><div class="low-contribution-title">🌱 Anunciantes hasta <span id="lowContributionLimitLabel">5.000,99 €</span> en Hearst</div><div class="low-contribution-context" id="lowContributionContext">Sponsorship, Social Networks y Curated</div></div>
         <div class="low-contribution-year-toggle" role="group" aria-label="Año del listado">
           <button class="low-contribution-year-button" id="lowContributionPreviousButton" type="button" data-low-contribution-year="previous" aria-pressed="false">Año anterior</button>
           <button class="low-contribution-year-button active" id="lowContributionCurrentButton" type="button" data-low-contribution-year="current" aria-pressed="true">Año actual</button>
@@ -1550,8 +1550,11 @@ function setLowContributionPublication(value){
   state.lowContributionPublication=value||'';
   const d=state.active==='all'?state.viewData?.all:state.viewData?.byChannel?.[state.active];if(d)renderLowContribution(d);
 }
+function lowContributionUpperBoundCents(limit){return Math.round(Number(limit||0)*100)+99}
+function lowContributionDisplayLimit(limit){return lowContributionUpperBoundCents(limit)/100}
 function lowContributionRowsFor(yearData,limit,publication=''){
-  return(yearData?.allRows||[]).filter(row=>row.companyIncome<limit).map(row=>{
+  const upperBoundCents=lowContributionUpperBoundCents(limit);
+  return(yearData?.allRows||[]).filter(row=>Math.round(Number(row.companyIncome||0)*100)<=upperBoundCents).map(row=>{
     if(!publication)return row;
     const detail=(row.publicationDetails||[]).find(item=>item.publication===publication);return detail?{...row,...detail,publications:[publication],responsible:detail.responsible||row.responsible}:null;
   }).filter(Boolean);
@@ -1596,7 +1599,7 @@ function renderLowContribution(d){
   const publications=data.publications||[];if(state.lowContributionPublication&&!publications.includes(state.lowContributionPublication))state.lowContributionPublication='';
   const publicationSelect=$('lowContributionPublicationSelect'),publicationValue=state.lowContributionPublication;
   publicationSelect.innerHTML='<option value="">Todas las publicaciones</option>'+publications.map(publication=>`<option value="${escapeHtml(publication)}">${escapeHtml(publication)}</option>`).join('');publicationSelect.value=publicationValue;
-  $('lowContributionLimitInput').value=formatLowContributionLimit(limit);$('lowContributionLimitLabel').textContent=euro(limit);
+  $('lowContributionLimitInput').value=formatLowContributionLimit(limit);$('lowContributionLimitLabel').textContent=euro(lowContributionDisplayLimit(limit));
   const activeYear=state.lowContributionYear,otherYear=activeYear===current?previous:current;
   const stats=summarizeLowContributionRows(lowContributionRowsFor(data.years?.[activeYear],limit,publicationValue));
   const other=summarizeLowContributionRows(lowContributionRowsFor(data.years?.[otherYear],limit,publicationValue));
@@ -1604,7 +1607,7 @@ function renderLowContribution(d){
   currentButton.textContent=String(current);previousButton.textContent=String(previous);
   for(const button of [currentButton,previousButton]){const year=button===currentButton?current:previous,active=year===activeYear;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));button.dataset.year=String(year)}
   const publicationText=publicationValue?` · publicación ${publicationValue}`:' · todas las publicaciones';
-  $('lowContributionContext').textContent=`${periodLabel(d)} · Sponsorship, Social Networks o Curated${publicationText} · total del anunciante en Hearst < ${euro(limit)}`;
+  $('lowContributionContext').textContent=`${periodLabel(d)} · Sponsorship, Social Networks o Curated${publicationText} · total del anunciante en Hearst ≤ ${euro(lowContributionDisplayLimit(limit))}`;
   const compare=(label,value,otherValue,formatter)=>`<article class="low-contribution-stat"><span>${label}</span><strong>${formatter(value)}</strong><small>${otherYear}: ${formatter(otherValue)}</small></article>`;
   $('lowContributionSummary').innerHTML=[
     compare('Anunciantes únicos',stats.count,other.count,integer),
@@ -1615,9 +1618,9 @@ function renderLowContribution(d){
   const familyLabels=['Sponsorship','Social Networks','Curated'];
   $('lowContributionFamilies').innerHTML=familyLabels.map(name=>`<span class="low-contribution-family-chip ${lowContributionFamilyClass(name)}">${escapeHtml(name)} <strong>${integer(stats.familyCounts?.[name]||0)}</strong></span>`).join('')+'<span class="low-contribution-family-chip">Los recuentos por familia pueden solaparse</span>';
   const sortedRows=sortedLowContributionRows(stats.rows);updateLowContributionSortButtons();
-  $('lowContributionBody').innerHTML=sortedRows.length?sortedRows.map(row=>`<tr><td class="low-contribution-name" title="${escapeHtml(row.name)}">${escapeHtml(row.name)}</td><td><span class="low-contribution-list" title="${escapeHtml(row.families.join(' · '))}">${escapeHtml(row.families.join(' · '))}</span></td><td><span class="low-contribution-list" title="${escapeHtml(row.products.join(' · '))}">${escapeHtml(lowContributionList(row.products))}</span></td><td><span class="low-contribution-list" title="${escapeHtml(row.publications.join(' · '))}">${escapeHtml(lowContributionList(row.publications))}</span></td><td>${integer(row.activationCount)}</td><td class="low-contribution-amount">${euro(row.eligibleIncome)}</td><td class="low-contribution-hearst">${euro(row.companyIncome)}</td><td class="low-contribution-owner" title="${escapeHtml(row.responsible)}">${escapeHtml(row.responsible)}</td></tr>`).join(''):`<tr><td colspan="8"><div class="low-contribution-empty">No hay anunciantes con ingreso positivo inferior a ${euro(limit)} en todo Hearst${publicationValue?` y actividad en ${escapeHtml(publicationValue)}`:''} para esta selección.</div></td></tr>`;
+  $('lowContributionBody').innerHTML=sortedRows.length?sortedRows.map(row=>`<tr><td class="low-contribution-name" title="${escapeHtml(row.name)}">${escapeHtml(row.name)}</td><td><span class="low-contribution-list" title="${escapeHtml(row.families.join(' · '))}">${escapeHtml(row.families.join(' · '))}</span></td><td><span class="low-contribution-list" title="${escapeHtml(row.products.join(' · '))}">${escapeHtml(lowContributionList(row.products))}</span></td><td><span class="low-contribution-list" title="${escapeHtml(row.publications.join(' · '))}">${escapeHtml(lowContributionList(row.publications))}</span></td><td>${integer(row.activationCount)}</td><td class="low-contribution-amount">${euro(row.eligibleIncome)}</td><td class="low-contribution-hearst">${euro(row.companyIncome)}</td><td class="low-contribution-owner" title="${escapeHtml(row.responsible)}">${escapeHtml(row.responsible)}</td></tr>`).join(''):`<tr><td colspan="8"><div class="low-contribution-empty">No hay anunciantes con ingreso positivo de hasta ${euro(lowContributionDisplayLimit(limit))} en todo Hearst${publicationValue?` y actividad en ${escapeHtml(publicationValue)}`:''} para esta selección.</div></td></tr>`;
   const sortLabels={name:'anunciante',families:'familia',products:'producto',publications:'publicación',activationCount:'activaciones',eligibleIncome:'ingreso en familias',companyIncome:'ingreso Hearst',responsible:'responsable'};
-  $('lowContributionNote').textContent=`El candidato debe tener al menos una activación real en Sponsorship, Social Networks o Curated${publicationValue?` en ${publicationValue}`:''} dentro de los filtros activos. Para decidir si queda por debajo de ${euro(limit)}, “Ingreso Hearst” suma todo su ingreso neto en Digital, Print y Eventos durante el mismo periodo y año, sin limitarlo por canal, publicación, familia, producto, sector o zona. Se excluyen costes y el límite es estricto: ${euro(limit)} exactos no entran. Orden actual: ${sortLabels[state.lowContributionSortKey]||'ingreso Hearst'} ${state.lowContributionSortDirection==='asc'?'ascendente':'descendente'}.`;
+  $('lowContributionNote').textContent=`El candidato debe tener al menos una activación real en Sponsorship, Social Networks o Curated${publicationValue?` en ${publicationValue}`:''} dentro de los filtros activos. “Ingreso Hearst” suma todo su ingreso neto en Digital, Print y Eventos durante el mismo periodo y año, sin limitarlo por canal, publicación, familia, producto, sector o zona. Se excluyen costes. Al escribir ${euro(limit)}, se incluyen importes hasta ${euro(lowContributionDisplayLimit(limit))}; ${euro(limit+1)} ya no entra. Orden actual: ${sortLabels[state.lowContributionSortKey]||'ingreso Hearst'} ${state.lowContributionSortDirection==='asc'?'ascendente':'descendente'}.`;
 }
 
 function sourceText(mode){const p=state.data.parsed,prog=p.programatica?`Prog. ${p.programatica.sourceDate}`:'Prog. sin desglose';if(mode==='all')return['digital','print','eventos'].filter(c=>p[c]).map(c=>`${CHANNEL_LABELS[c]} ${p[c].sourceDate}`).concat(prog).join(' · ');if(mode==='digital')return p.digital?`Digital ${p.digital.sourceDate} · ${prog}`:'sin archivo';return p[mode]?`${CHANNEL_LABELS[mode]} ${p[mode].sourceDate}`:'sin archivo'}
